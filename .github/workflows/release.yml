@@ -1,6 +1,7 @@
 name: Release to npm
 # Publishes every public package under packages/ whose version is not on npm yet.
-# Needs the NPM_TOKEN repository secret (npm granular token with publish rights on the @instincts scope).
+# Publishes through npm trusted publishing (GitHub OIDC): each package lists this repo and
+# release.yml as its trusted publisher on npmjs.com, so no npm token is stored anywhere.
 on:
   workflow_dispatch:
     inputs:
@@ -10,7 +11,7 @@ on:
         default: true
 permissions:
   contents: read
-  id-token: write # npm provenance
+  id-token: write # npm trusted publishing and provenance
 concurrency: release
 jobs:
   publish:
@@ -24,7 +25,8 @@ jobs:
         with:
           node-version-file: .nvmrc
           cache: pnpm
-          registry-url: https://registry.npmjs.org
+      - name: npm 11.5.1+ for trusted publishing (pnpm publishes through the npm CLI)
+        run: npm install -g npm@^11.5.1
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter "./packages/**" build
       - run: pnpm lint
@@ -33,5 +35,4 @@ jobs:
       - name: Publish
         run: pnpm -r --filter "./packages/**" publish --access public --no-git-checks ${{ inputs.dry_run && '--dry-run' || '' }}
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           NPM_CONFIG_PROVENANCE: "true"

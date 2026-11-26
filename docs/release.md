@@ -51,22 +51,21 @@ The packages build to `dist/` with tsup (ESM, CommonJS and `.d.ts`); `publishCon
 Tarballs are checked in a fresh project with ESM `import`, CommonJS `require` and `tsc` under
 `nodenext`, `bundler` and `node10` resolution.
 
-To publish:
+To publish, run **Release to npm** (`.github/workflows/release.yml`) from the Actions tab: first
+with *dry run* on, then off. It builds, lints, typechecks, tests and publishes every package
+under `packages/` whose version isn't on npm yet. spree-admin-native goes first, since
+expo-spree's packages depend on `@instincts/spree-*`.
 
-1. **npm org** `instincts`, with the publishing account as a member.
-2. **`NPM_TOKEN` secret** for both GitHub repos (an organization secret on `1instinct` covers
-   both): an npm *granular access token* with read and write on the `@instincts` scope and on
-   `expo-spree`, with "bypass 2FA" so CI can publish.
-3. **Run "Release to npm"** (`.github/workflows/release.yml`) from the Actions tab: first with
-   *dry run* on, then off. It builds, lints, typechecks, tests and publishes every package
-   under `packages/` whose version isn't on npm yet, with provenance. spree-admin-native goes
-   first, since expo-spree's packages depend on `@instincts/spree-*`.
-4. **Next versions** with Changesets (already a dev dependency): `pnpm changeset`, then
-   `pnpm changeset version`, commit, and run the workflow again. GitHub immutable releases are
-   fine with this; tags are never moved.
-5. **Trusted publishing.** Once each package exists on npm, add this repo's `release.yml` as a
-   trusted publisher in the package settings and remove `NPM_TOKEN`; CI then publishes with
-   short-lived OIDC credentials instead of a stored token.
+The workflow publishes with **npm trusted publishing**: each package names this repo and
+`release.yml` as its trusted publisher on npmjs.com, GitHub Actions proves its identity with
+OIDC, and npm adds provenance. No npm token is stored. A new package has no settings page
+until its first version exists, so publish it once from a maintainer's machine
+(`npm publish --access public` in its folder), then add the trusted publisher.
+
+Next versions use Changesets (already a dev dependency): `pnpm changeset`, then
+`pnpm changeset version`, commit, and run the workflow again. GitHub immutable releases are
+fine with this; tags are never moved. A new version shows as `0.0.0-stage` on npm for a few
+minutes while npm processes it.
 
 ## Ship the app (any distribution)
 

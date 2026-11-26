@@ -13,6 +13,21 @@ const asset = (key: keyof NonNullable<DistributionConfig['assets']>, fallback: s
 };
 const projectId = distribution.eas?.projectId;
 
+// Sentry: off without a DSN; uploads source maps only when the org and project are known too.
+const sentry = distribution.sentry ?? {};
+const sentryDsn = process.env.SENTRY_DSN || sentry.dsn;
+const sentryOrg = process.env.SENTRY_ORG || sentry.organization;
+const sentryProject = process.env.SENTRY_PROJECT || sentry.project;
+const sentryPlugin: [string, Record<string, string>][] =
+  sentryOrg && sentryProject
+    ? [
+        [
+          '@sentry/react-native/expo',
+          { url: sentry.url ?? 'https://sentry.io/', organization: sentryOrg, project: sentryProject },
+        ],
+      ]
+    : [];
+
 export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
   name: distribution.name,
@@ -59,10 +74,12 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
         imageWidth: 76,
       },
     ],
+    ...sentryPlugin,
   ],
   experiments: { typedRoutes: true, reactCompiler: true },
   extra: {
     distribution: name,
     ...(projectId ? { eas: { projectId } } : {}),
+    sentry: sentryDsn ? { dsn: sentryDsn, tracesSampleRate: sentry.tracesSampleRate ?? 0 } : null,
   },
 });

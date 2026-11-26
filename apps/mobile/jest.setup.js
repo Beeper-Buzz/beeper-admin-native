@@ -10,3 +10,10 @@ jest.mock('expo-secure-store', () => ({
   setItemAsync: jest.fn(async (k, v) => void mockStore.set(k, v)),
   deleteItemAsync: jest.fn(async (k) => void mockStore.delete(k)),
 }));
+
+jest.mock('@sentry/react-native', () => ({
+  init: jest.fn(),
+  wrap: (component) => component,
+  captureException: jest.fn(),
+  setTag: jest.fn(),
+}));

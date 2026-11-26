@@ -1,8 +1,9 @@
 // Resolves `@distribution` to distributions/$APP_DISTRIBUTION (default: "default"). See docs/forking.md.
 const path = require('node:path');
-const { getDefaultConfig } = require('expo/metro-config');
+// Sentry's config is Expo's default plus debug IDs, which tie crash stack traces to source maps.
+const { getSentryExpoConfig } = require('@sentry/react-native/metro');
 
-const config = getDefaultConfig(__dirname);
+const config = getSentryExpoConfig(__dirname);
 const distribution = process.env.APP_DISTRIBUTION || 'default';
 const distributionEntry = path.resolve(__dirname, '../../distributions', distribution, 'index.ts');
 

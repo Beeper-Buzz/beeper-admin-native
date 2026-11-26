@@ -19,6 +19,23 @@ export interface DistributionConfig {
   lockToStore: boolean;
   /** Splash and adaptive-icon background. */
   brandColor: string;
+  /** Crash and error reporting with Sentry. Off unless a DSN is set. See docs/forking.md. */
+  sentry?: SentryConfig;
+}
+
+export interface SentryConfig {
+  /** Client key; public by design, since it ships inside the app. `SENTRY_DSN` at build time overrides it. */
+  dsn?: string;
+  /**
+   * Organization and project slugs. With both set (or `SENTRY_ORG` / `SENTRY_PROJECT`), builds upload
+   * source maps and debug symbols, which needs the `SENTRY_AUTH_TOKEN` secret on the EAS project.
+   */
+  organization?: string;
+  project?: string;
+  /** Self-hosted Sentry. Default: https://sentry.io/ */
+  url?: string;
+  /** Share of sessions (0–1) that send performance traces. Default 0: errors only. */
+  tracesSampleRate?: number;
 }
 
 /**
