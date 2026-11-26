@@ -1,0 +1,36 @@
+name: Sync upstream
+on:
+  schedule:
+    - cron: "17 14 * * 1"   # Mondays
+  workflow_dispatch:
+permissions:
+  contents: write
+  pull-requests: write
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - name: Merge upstream main into a sync branch
+        id: merge
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git remote add upstream https://github.com/1instinct/spree-admin-native.git
+          git fetch upstream main
+          if git merge-base --is-ancestor upstream/main HEAD; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          git checkout -B chore/sync-upstream
+          git merge --no-edit upstream/main
+          git push -f origin chore/sync-upstream
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+      - name: Open or update pull request
+        if: steps.merge.outputs.changed == 'true'
+        env: { GH_TOKEN: "${{ secrets.GITHUB_TOKEN }}" }
+        run: |
+          gh pr view chore/sync-upstream >/dev/null 2>&1 || \
+          gh pr create --head chore/sync-upstream --base main \
+            --title "[Chore]: Sync upstream spree-admin-native" \
+            --body "Weekly merge of upstream \`main\`. Conflicts outside \`distributions/beeper\` mean a fork rule was broken."

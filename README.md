@@ -1,62 +1,29 @@
-# Spree Admin Native
+# Beeper Admin
 
-**Run your Spree Commerce store from your phone.** An open-source, native admin app for
-[Spree](https://spreecommerce.org) 4.2 through the latest release, on iOS, Android, iPad
-and the web.
+The admin app for the [Beeper](https://beeper.buzz) store and community, on iOS and Android.
 
-> Status: **planning / Phase 0**. Read the [design spec](docs/superpowers/specs/2026-11-26-spree-admin-native-design.md)
-> and the [Phase 0 plan](docs/superpowers/plans/2026-11-26-phase-0-foundations.md).
+A fork of the open-source [Spree Admin Native](https://github.com/1instinct/spree-admin-native)
+Spree admin app, with Beeper's brand and native extensions for moderation, support,
+in-app purchases, live streams and content.
 
-## What it does
+> Status: **planning**. See the [fork spec](docs/superpowers/specs/2026-11-26-beeper-admin-native-design.md)
+> and the [Beeper plan](docs/superpowers/plans/2026-11-26-beeper-fork-setup.md).
+> The upstream spec is in `docs/superpowers/specs/2026-11-26-spree-admin-native-design.md`.
 
-- **Order notifications** with a till chime the moment a sale lands.
-- **Home** that tells you what needs doing today: orders to fulfil, payments to capture,
-  low stock.
-- **Orders**: fulfil with barcode-scanned tracking numbers, capture, refund, cancel, notes.
-- **Products and inventory**: edit, photograph, adjust stock, scan to find a variant.
-- **Customers, promotions and full store settings.**
-- **Extensions** from a community registry, including server-rendered "Blocks" extensions
-  any Spree developer can write in Ruby.
-- **Works with your Spree as it is.** No server of ours. An optional companion gem and
-  optional self-hosted relay add push notifications and faster dashboards on older Spree.
+## Fork rules
 
-## How it works
+- Beeper-only code lives in `distributions/beeper/` and `docs/beeper/`.
+- Everything else comes from upstream. Generic fixes go upstream first.
+- A weekly workflow opens a **Sync upstream** pull request.
 
-```
-Expo app ── tRPC (runs in the app) ── spree-sdk adapters ── your Spree store
-                                       ├─ Platform API v2  (Spree 4.2 – 5.x)
-                                       └─ Admin API v3     (Spree 5.4+)
+## Build
+
+```sh
+APP_DISTRIBUTION=beeper pnpm --filter mobile start
+APP_DISTRIBUTION=beeper eas build --profile production
 ```
 
-The app asks your store what it supports and adapts. Compatibility is proven by contract
-tests against real Spree versions in CI; see [docs/compatibility.md](docs/compatibility.md)
-(generated, coming in Phase 0).
+## Backend
 
-## Repository layout (target)
-
-| Path                      | What                                         |
-| ------------------------- | -------------------------------------------- |
-| `apps/mobile`             | Expo app (iOS, Android, web)                 |
-| `apps/relay`              | Optional self-hosted push / webhook relay    |
-| `packages/domain`         | Normalised commerce models (zod)             |
-| `packages/spree-sdk`      | Version-adaptive Spree client                |
-| `packages/api`            | tRPC router                                  |
-| `packages/ui`             | Design tokens and components                 |
-| `packages/extension-sdk`  | Extension manifest, slots, Blocks schema     |
-| `gems/spree_admin_native` | Optional Spree companion gem                 |
-| `distributions/default`   | Brand, theme and config for the upstream app |
-
-## Forking for your brand
-
-Agencies and merchants can ship their own branded build. Everything brand-specific lives in
-`distributions/<name>/`, so upstream updates merge cleanly. See [docs/forking.md](docs/forking.md).
-[`beeper-admin-native`](https://github.com/Beeper-Buzz/beeper-admin-native) is the first fork.
-
-## Contributing
-
-See [CONTRIBUTING.md](CONTRIBUTING.md). Decisions are recorded in [docs/adr](docs/adr).
-Design language: [docs/design/design-language.md](docs/design/design-language.md).
-
-## License
-
-[MIT](LICENSE)
+The store backend is [`dna-admin`](https://github.com/1instinct/dna-admin) (Spree 4.2.5),
+served at `admin.beeper.buzz`.
