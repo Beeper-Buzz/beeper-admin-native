@@ -72,15 +72,22 @@ Export compliance is declared in the app (`usesNonExemptEncryption: false`: HTTP
 
 ## 5. Build and ship
 
+This repo is a pnpm workspace: install with pnpm, never `npm install` (npm stops with
+`Unsupported URL Type "workspace:"`). Run the first iOS build from your Mac, interactively, so
+EAS can sign in to Apple once to register `com.beeper.admin`; reuse the existing distribution
+certificate and push key when it asks.
+
 ```sh
+corepack enable && pnpm install        # repo root, once
+npm install -g eas-cli                 # global, outside the repo's dependencies
 cd apps/mobile
-APP_DISTRIBUTION=beeper npx eas-cli build --profile production --platform ios
-APP_DISTRIBUTION=beeper npx eas-cli submit --profile production --platform ios --latest
+APP_DISTRIBUTION=beeper eas build --profile production --platform ios
+APP_DISTRIBUTION=beeper eas submit --profile production --platform ios --latest
 ```
 
 The build goes to TestFlight first (minutes for internal testers), then to review from App
 Store Connect (typically 1–2 days). JS-only fixes after launch ship with
-`APP_DISTRIBUTION=beeper npx eas-cli update --channel production`.
+`APP_DISTRIBUTION=beeper eas update --channel production`.
 
 Android: `--platform android` with a Google Play service account; Play's internal track is the
 fastest way to get it onto Beeper staff phones.
