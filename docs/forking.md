@@ -66,8 +66,17 @@ cookies or request bodies, and filters credential headers (`Authorization`, `X-S
 | `sentry.tracesSampleRate` | `distribution.json` | Share of sessions that send performance traces (0–1). Default 0.1 |
 | `sentry.logs` | `distribution.json` | `false` stops sending logs. Default on |
 
-To check a new setup, open `<scheme>://sentry-test` on a device running a release build: it
-throws `Sentry test error <timestamp>` through the app's error screen, which reports it.
+To check a new setup, add a temporary route that throws:
+
+```tsx
+// apps/mobile/src/app/sentry-test.tsx (remove after checking)
+export default function SentryTest(): never {
+  throw new Error(`Sentry test error ${Date.now()}`);
+}
+```
+
+Open `<scheme>://sentry-test` on a release build, find the error in Sentry, then delete the file.
+The app's error screen reports render errors, so nothing else is needed.
 
 `eas.json` sets `SENTRY_ALLOW_FAILURE=true`, so a missing or expired auth token costs you
 readable stack traces, not the build. Turning Sentry on changes your App Store privacy answers:
