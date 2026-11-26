@@ -16,6 +16,10 @@ export interface Context {
 }
 
 const t = initTRPC.context<Context>().create({
+  // The router runs inside the app (localLink, ADR 0002). React Native defines `window`, so tRPC's
+  // server check fails on devices and create() throws at startup unless this is opted into. Jest
+  // and Vitest pass that check by name, which is why only release builds crashed.
+  allowOutsideOfServer: true,
   errorFormatter({ shape, error }) {
     const cause = error.cause;
     return {
