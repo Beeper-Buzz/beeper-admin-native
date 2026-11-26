@@ -24,21 +24,20 @@ Still to fill in:
 | --- | --- | --- |
 | `assets.icon`, `assets.splash`, `assets.adaptiveIconForeground` | missing (placeholder art) | A 1024×1024 icon distinct from the consumer app, splash mark, Android foreground |
 
-Also set `APP_DISTRIBUTION=beeper` as an environment variable in the EAS project (all
-environments, plain text). Builds started from expo.dev or GitHub need it to pick the Beeper
-distribution.
-
-The EAS project is linked to this GitHub repo. Because the app lives in a monorepo, set the
-project's **Base directory** to `apps/mobile` in expo.dev → Project settings → GitHub before
-starting builds from GitHub.
+Already set on the EAS project: `APP_DISTRIBUTION=beeper` (plain text, all three environments),
+and the GitHub **Base directory** `apps/mobile`, so builds started from expo.dev or GitHub pick
+the Beeper distribution.
 
 ## 2. Apple
 
 1. **App Store Connect record** for `com.beeper.admin` under Beeper's team (EAS can create it
    on first submit). **you**
-1. **App Store Connect API key** (Issuer ID, Key ID, `.p8`) added to EAS credentials, so builds
-   and submits run unattended. **you**
-1. **Push key (APNs)**: let EAS generate it on the first build, or reuse BeeperNative's key.
+1. **App Store Connect API key**: the instincts account already has one for this team on EAS
+   (`DY2AYN4C3Q`, Admin, used by BeeperNative's submits); choose it when EAS asks.
+1. **Push key (APNs)**: reuse the team's existing key `K62CDG9N46` when the first build asks.
+1. **Distribution certificate**: the team's current one is valid to 2027-02-20; reuse it. The
+   first build registers the `com.beeper.admin` App ID and makes its provisioning profile, so
+   run it once interactively (`eas build` without `--non-interactive`) to sign in to Apple.
 1. **Distribution choice.** Beeper Admin is a tool for Beeper staff. Apple's guidance for internal
    business apps is a *Custom App* through Apple Business Manager (private to Beeper's org, same
    review), or *Unlisted App Distribution* (reachable only by link). A public listing of a staff
