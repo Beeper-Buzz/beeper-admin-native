@@ -50,18 +50,24 @@ on your EAS project (all environments) so cloud builds and `eas update` use it.
 
 ## Crash reporting (Sentry)
 
-Off unless your distribution has a DSN. With one, the app reports crashes and errors from
-release builds (never from the dev server), tagged with the EAS update channel as the
-environment and with the connected store's host and API family. It sends no IP addresses,
+Off unless your distribution has a DSN. With one, release builds (never the dev server) send
+crashes and errors, performance traces for screen loads and API calls (Expo Router
+integration), and logs (console warnings and errors, and `Sentry.logger`). Events are tagged
+with the EAS update channel as the environment and with the connected store's host and API
+family. It sends no IP addresses,
 cookies or request bodies, and filters credential headers (`Authorization`, `X-Spree-Token`,
-`X-Spree-Api-Key`…) and token query parameters out of every event.
+`X-Spree-Api-Key`…) and token query parameters out of every event, breadcrumb and log.
 
 | Setting | Where | Effect |
 | --- | --- | --- |
 | `sentry.dsn` | `distribution.json`, or `SENTRY_DSN` on the EAS project | Turns reporting on. The DSN is public by design; it ships in the app |
 | `sentry.organization`, `sentry.project` | `distribution.json`, or `SENTRY_ORG` / `SENTRY_PROJECT` | Builds upload source maps and debug symbols, so stack traces show your code |
 | `SENTRY_AUTH_TOKEN` | EAS project, visibility **Secret** | Authorizes those uploads. Never commit it |
-| `sentry.tracesSampleRate` | `distribution.json` | Share of sessions that send performance traces (0–1). Default 0 |
+| `sentry.tracesSampleRate` | `distribution.json` | Share of sessions that send performance traces (0–1). Default 0.1 |
+| `sentry.logs` | `distribution.json` | `false` stops sending logs. Default on |
+
+To check a new setup, open `<scheme>://sentry-test` on a device running a release build: it
+throws `Sentry test error <timestamp>` through the app's error screen, which reports it.
 
 `eas.json` sets `SENTRY_ALLOW_FAILURE=true`, so a missing or expired auth token costs you
 readable stack traces, not the build. Turning Sentry on changes your App Store privacy answers:

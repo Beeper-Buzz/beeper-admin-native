@@ -80,6 +80,8 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   extra: {
     distribution: name,
     ...(projectId ? { eas: { projectId } } : {}),
-    sentry: sentryDsn ? { dsn: sentryDsn, tracesSampleRate: sentry.tracesSampleRate ?? 0 } : null,
+    sentry: sentryDsn
+      ? { dsn: sentryDsn, tracesSampleRate: sentry.tracesSampleRate ?? 0.1, logs: sentry.logs ?? true }
+      : null,
   },
 });

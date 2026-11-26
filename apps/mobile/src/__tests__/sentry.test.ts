@@ -1,5 +1,12 @@
 import * as Sentry from '@sentry/react-native';
-import { scrubBreadcrumb, scrubEvent, scrubUrl, sentrySettings, startSentry } from '@/observability/sentry';
+import {
+  scrubBreadcrumb,
+  scrubEvent,
+  scrubLog,
+  scrubUrl,
+  sentrySettings,
+  startSentry,
+} from '@/observability/sentry';
 
 describe('sentrySettings', () => {
   it('is off without a DSN', () => {
@@ -10,11 +17,10 @@ describe('sentrySettings', () => {
 
   it('reads the DSN and clamps the trace rate', () => {
     expect(
-      sentrySettings({ sentry: { dsn: 'https://k@o1.ingest.sentry.io/2', tracesSampleRate: 0.2 } }),
-    ).toEqual({
-      dsn: 'https://k@o1.ingest.sentry.io/2',
-      tracesSampleRate: 0.2,
-    });
+      sentrySettings({
+        sentry: { dsn: 'https://k@o1.ingest.sentry.io/2', tracesSampleRate: 0.2, logs: false },
+      }),
+    ).toEqual({ dsn: 'https://k@o1.ingest.sentry.io/2', tracesSampleRate: 0.2, logs: false });
     expect(
       sentrySettings({ sentry: { dsn: 'https://k@o1.ingest.sentry.io/2', tracesSampleRate: 7 } })
         ?.tracesSampleRate,
@@ -54,6 +60,16 @@ describe('scrubbing', () => {
     expect(event.breadcrumbs?.[0]?.data?.url).toBe('https://shop.example.com/a?token=[Filtered]');
   });
 
+  it('filters credentials in log messages and attributes', () => {
+    const log = scrubLog({
+      level: 'warn',
+      message: 'GET https://shop.example.com/api?token=abc failed',
+      attributes: { url: 'https://shop.example.com/x?api_key=k', status: 500 },
+    });
+    expect(log.message).toBe('GET https://shop.example.com/api?token=[Filtered] failed');
+    expect(log.attributes).toEqual({ url: 'https://shop.example.com/x?api_key=[Filtered]', status: 500 });
+  });
+
   it('leaves breadcrumbs without URLs alone', () => {
     expect(scrubBreadcrumb({ category: 'ui.click', message: 'Orders' })).toEqual({
       category: 'ui.click',
@@ -69,7 +85,9 @@ describe('startSentry', () => {
   });
 
   it('starts with privacy defaults and the scrubbers', () => {
-    expect(startSentry({ dsn: 'https://k@o1.ingest.sentry.io/2', tracesSampleRate: 0 })).toBe(true);
+    expect(startSentry({ dsn: 'https://k@o1.ingest.sentry.io/2', tracesSampleRate: 0.1, logs: true })).toBe(
+      true,
+    );
     expect(Sentry.init).toHaveBeenCalledWith(
       expect.objectContaining({
         dsn: 'https://k@o1.ingest.sentry.io/2',

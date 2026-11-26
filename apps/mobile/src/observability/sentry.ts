@@ -1,5 +1,6 @@
 import type { StoreProbe } from '@instincts/spree-sdk';
 import * as Sentry from '@sentry/react-native';
+import { isRunningInExpoGo } from 'expo';
 import Constants from 'expo-constants';
 import * as Updates from 'expo-updates';
 
@@ -10,20 +11,31 @@ import * as Updates from 'expo-updates';
  */
 export interface SentrySettings {
   dsn: string;
+  /** Share of sessions that send traces. */
   tracesSampleRate: number;
+  /** Send console warnings and errors and Sentry.logger output as logs. */
+  logs: boolean;
 }
 
 export function sentrySettings(extra: Record<string, unknown> | undefined = Constants.expoConfig?.extra) {
-  const value = extra?.sentry as { dsn?: unknown; tracesSampleRate?: unknown } | null | undefined;
+  const value = extra?.sentry as
+    | { dsn?: unknown; tracesSampleRate?: unknown; logs?: unknown }
+    | null
+    | undefined;
   if (!value || typeof value.dsn !== 'string' || !value.dsn) return null;
-  const rate = Number(value.tracesSampleRate);
-  return { dsn: value.dsn, tracesSampleRate: rate >= 0 && rate <= 1 ? rate : 0 } satisfies SentrySettings;
+  const rate = value.tracesSampleRate === undefined ? 0.1 : Number(value.tracesSampleRate);
+  return {
+    dsn: value.dsn,
+    tracesSampleRate: rate >= 0 && rate <= 1 ? rate : 0,
+    logs: value.logs !== false,
+  } satisfies SentrySettings;
 }
 
 // Admin credentials travel in these; none may reach Sentry.
 const SECRET_HEADER =
   /^(authorization|cookie|set-cookie|x-spree-token|x-spree-api-key|x-spree-order-token)$/i;
-const SECRET_PARAM = /([?&#](?:token|access_token|refresh_token|api_key|code|order_token|password)=)[^&#]*/gi;
+const SECRET_PARAM =
+  /([?&#](?:token|access_token|refresh_token|api_key|code|order_token|password)=)[^&#\s]*/gi;
 
 export function scrubUrl(url: string): string {
   return url.replace(SECRET_PARAM, '$1[Filtered]');
@@ -56,6 +68,18 @@ export function scrubBreadcrumb(crumb: Sentry.Breadcrumb): Sentry.Breadcrumb {
   return crumb;
 }
 
+type SentryLog = Parameters<NonNullable<Sentry.ReactNativeOptions['beforeSendLog']>>[0];
+
+export function scrubLog(log: SentryLog): SentryLog {
+  const message = typeof log.message === 'string' ? scrubUrl(log.message) : log.message;
+  const attributes = log.attributes
+    ? Object.fromEntries(
+        Object.entries(log.attributes).map(([k, v]) => [k, typeof v === 'string' ? scrubUrl(v) : v]),
+      )
+    : log.attributes;
+  return { ...log, message, attributes };
+}
+
 let started = false;
 
 /** Starts Sentry once. Returns whether reporting is on. */
@@ -70,8 +94,16 @@ export function startSentry(settings: SentrySettings | null = sentrySettings()):
     // Staff accounts and customer data stay out: no IP address, cookies or request bodies.
     sendDefaultPii: false,
     tracesSampleRate: settings.tracesSampleRate,
+    enableLogs: settings.logs,
     beforeSend: scrubEvent,
     beforeBreadcrumb: scrubBreadcrumb,
+    beforeSendLog: scrubLog,
+    integrations: [
+      // Screen loads and navigation timings, named by route.
+      Sentry.expoRouterIntegration({ enableTimeToInitialDisplay: !isRunningInExpoGo() }),
+      ...(settings.logs ? [Sentry.consoleLoggingIntegration({ levels: ['warn', 'error'] })] : []),
+    ],
+    enableNativeFramesTracking: !isRunningInExpoGo(),
   });
   started = true;
   return true;

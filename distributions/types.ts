@@ -34,8 +34,10 @@ export interface SentryConfig {
   project?: string;
   /** Self-hosted Sentry. Default: https://sentry.io/ */
   url?: string;
-  /** Share of sessions (0–1) that send performance traces. Default 0: errors only. */
+  /** Share of sessions (0–1) that send performance traces (screen loads, API calls). Default 0.1. */
   tracesSampleRate?: number;
+  /** Send app logs (warnings and errors from the console, and Sentry.logger). Default true. */
+  logs?: boolean;
 }
 
 /**
