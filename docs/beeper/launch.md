@@ -78,7 +78,8 @@ EAS can sign in to Apple once to register `com.beeper.admin`; reuse the existing
 certificate and push key when it asks.
 
 ```sh
-corepack enable && pnpm install        # repo root, once
+nvm install && nvm use                 # repo root: Node 22 from .nvmrc (ships corepack)
+corepack enable && pnpm install        # once
 npm install -g eas-cli                 # global, outside the repo's dependencies
 cd apps/mobile
 APP_DISTRIBUTION=beeper eas build --profile production --platform ios
