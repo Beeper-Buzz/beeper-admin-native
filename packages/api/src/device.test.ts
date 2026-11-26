@@ -5,19 +5,17 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
  * "is this a server?" check fails. Reproduce that here: tests otherwise pass the check by name.
  */
 describe('in a React Native-like environment', () => {
-  const saved = { ...process.env };
-
   beforeEach(() => {
-    delete process.env.VITEST_WORKER_ID;
-    delete process.env.JEST_WORKER_ID;
-    process.env.NODE_ENV = 'production';
-    (globalThis as { window?: unknown }).window = globalThis;
+    vi.stubEnv('VITEST_WORKER_ID', undefined);
+    vi.stubEnv('JEST_WORKER_ID', undefined);
+    vi.stubEnv('NODE_ENV', 'production');
+    vi.stubGlobal('window', globalThis);
     vi.resetModules();
   });
 
   afterEach(() => {
-    process.env = { ...saved };
-    delete (globalThis as { window?: unknown }).window;
+    vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
     vi.resetModules();
   });
 
