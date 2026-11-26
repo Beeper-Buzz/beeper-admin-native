@@ -28,6 +28,16 @@ Already set on the EAS project: `APP_DISTRIBUTION=beeper` (plain text, all three
 and the GitHub **Base directory** `apps/mobile`, so builds started from expo.dev or GitHub pick
 the Beeper distribution.
 
+### Crash reporting
+
+Sentry org `material-instinct-llc`, project `beeper-admin` (separate from the consumer app's
+`beeper-buzz`). To turn it on:
+
+1. Create the `beeper-admin` project in Sentry (platform React Native) and put its DSN in
+   `sentry.dsn` in `distributions/beeper/distribution.json`. The DSN is public; it ships in the app.
+1. Create an organization auth token in Sentry and save it on the EAS project as
+   `SENTRY_AUTH_TOKEN` (visibility Secret, preview and production), so builds upload source maps.
+
 ## 2. Apple
 
 1. **App Store Connect record** for `com.beeper.admin` under Beeper's team (EAS can create it
@@ -65,7 +75,7 @@ on), age rating, and the App Privacy answers:
 | --- | --- | --- | --- |
 | Email address (staff sign-in) | Yes | Yes | App functionality |
 | Device ID (push token) | Yes | Yes | App functionality |
-| Crash data | Only if Sentry is turned on | No | App functionality |
+| Crash data | Yes (Sentry) | No | App functionality |
 | Tracking | No | | |
 
 Export compliance is declared in the app (`usesNonExemptEncryption: false`: HTTPS only).
