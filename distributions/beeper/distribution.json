@@ -1,5 +1,5 @@
 {
-  "$comment": "Bundle ID com.beeper.admin is confirmed. EAS project @instincts/beeper-admin-native; Apple team Material Instinct, LLC (same team as BeeperNative). Sentry reports turn on once sentry.dsn is set (project beeper-admin in material-instinct-llc).",
+  "$comment": "Bundle ID com.beeper.admin is confirmed. EAS project @instincts/beeper-admin-native; Apple team Material Instinct, LLC (same team as BeeperNative). Sentry project material-instinct-llc/beeper-admin-native (beeper-admin is the Rails backend's).",
   "name": "Beeper Admin",
   "slug": "beeper-admin-native",
   "scheme": "beeperadmin",
@@ -19,7 +19,8 @@
   "lockToStore": true,
   "brandColor": "#000000",
   "sentry": {
+    "dsn": "https://1e62f2e4f9d776a3bf295a9541cf30ca@o4505382238158848.ingest.us.sentry.io/4512500421754880",
     "organization": "material-instinct-llc",
-    "project": "beeper-admin"
+    "project": "beeper-admin-native"
   }
 }

@@ -32,13 +32,11 @@ the Beeper distribution.
 
 ### Crash reporting
 
-Sentry org `material-instinct-llc`, project `beeper-admin` (separate from the consumer app's
-`beeper-buzz`). To turn it on:
-
-1. Create the `beeper-admin` project in Sentry (platform React Native) and put its DSN in
-   `sentry.dsn` in `distributions/beeper/distribution.json`. The DSN is public; it ships in the app.
-1. Create an organization auth token in Sentry and save it on the EAS project as
-   `SENTRY_AUTH_TOKEN` (visibility Secret, preview and production), so builds upload source maps.
+Sentry org `material-instinct-llc`, project `beeper-admin-native` (React Native). It is separate
+from the consumer app's `beeper-buzz` and from `beeper-admin`, which is the Rails backend's.
+The DSN is in `distributions/beeper/distribution.json`; traces at the upstream default (10%) and
+logs on. Source maps upload during EAS builds once the EAS project has a `SENTRY_AUTH_TOKEN`
+secret (preview and production).
 
 ## 2. Apple
 
