@@ -1,0 +1,11 @@
+{
+  "$comment": "Bundle IDs and EAS project are placeholders until confirmed (fork spec §8).",
+  "name": "Beeper Admin",
+  "slug": "beeper-admin",
+  "scheme": "beeperadmin",
+  "ios": { "bundleIdentifier": "buzz.beeper.admin" },
+  "android": { "package": "buzz.beeper.admin" },
+  "defaultStoreUrl": "https://admin.beeper.buzz",
+  "lockToStore": true,
+  "brandColor": "#000000"
+}
