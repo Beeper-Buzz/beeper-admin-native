@@ -5,9 +5,14 @@ export interface DistributionConfig {
   slug: string;
   /** Deep-link scheme. */
   scheme: string;
-  ios: { bundleIdentifier: string };
+  /** Marketing version shown in the stores (build numbers are managed remotely by EAS). */
+  version?: string;
+  ios: { bundleIdentifier: string; appleTeamId?: string };
   android: { package: string };
-  eas?: { projectId?: string; updatesChannel?: string };
+  /** The distribution's own Expo project; forks never share upstream's. */
+  eas?: { projectId?: string; owner?: string };
+  /** Paths relative to the distribution folder; fall back to the app's placeholder art. */
+  assets?: { icon?: string; adaptiveIconForeground?: string; splash?: string };
   /** Pre-fills Connect. */
   defaultStoreUrl: string | null;
   /** Hide "add another store" (single-store forks). */

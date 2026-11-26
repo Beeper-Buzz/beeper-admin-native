@@ -14,6 +14,12 @@ module SpreeAdminNative
       yield config
     end
 
+    # Stores that lock accounts (e.g. dna-admin's moderation) expose account_locked?; a locked
+    # admin's paired devices stop working with everything else they hold.
+    def locked?(user)
+      user.respond_to?(:account_locked?) && user.account_locked?
+    end
+
     # Extensions announce what they add so the app can show matching features
     # (e.g. SpreeAdminNative.register_capability('beeper.moderation')).
     def register_capability(name)

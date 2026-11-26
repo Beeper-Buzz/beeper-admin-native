@@ -35,7 +35,7 @@ module SpreeAdminNative
       end
 
       def require_admin!
-        return if current_admin && admin?(current_admin)
+        return if current_admin && admin?(current_admin) && !SpreeAdminNative.locked?(current_admin)
 
         render json: { error: { code: 'authentication_required', message: 'Sign in with a paired device or an admin API key.' } },
                status: :unauthorized

@@ -8,7 +8,8 @@ module SpreeAdminNative
       return unless SpreeAdminNative::Tokens.device_token?(api_key)
 
       device = SpreeAdminNative::Device.authenticate(api_key)
-      @current_api_user = device.owner if device
+      owner = device&.owner
+      @current_api_user = owner if owner && !SpreeAdminNative.locked?(owner)
     end
   end
 end

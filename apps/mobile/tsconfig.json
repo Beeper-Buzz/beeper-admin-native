@@ -7,7 +7,7 @@
       "@/assets/*": ["./assets/*"],
       "@distribution": ["../../distributions/default/index.ts"]
     },
-    "types": ["jest"]
+    "types": ["jest", "node"]
   },
   "include": ["**/*.ts", "**/*.tsx", ".expo/types/**/*.ts", "expo-env.d.ts"]
 }

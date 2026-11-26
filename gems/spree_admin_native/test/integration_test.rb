@@ -85,6 +85,22 @@ class SpreeAdminNativeIntegrationTest < Minitest::Test
     assert_equal 401, last_response.status
   end
 
+  # dna-admin locks accounts (account_locked?); a locked admin's paired devices must stop working.
+  def test_locked_accounts_lose_device_access
+    token = pair!
+    header 'X-Spree-Token', token
+    get '/api/v1/orders', per_page: 1
+    assert_equal 200, last_response.status
+
+    Spree.user_class.class_eval { def account_locked?; true; end }
+    get '/api/v1/orders', per_page: 1
+    assert_equal 401, last_response.status
+    get '/api/admin_native/v1/summary'
+    assert_equal 401, last_response.status
+  ensure
+    Spree.user_class.class_eval { remove_method :account_locked? if method_defined?(:account_locked?, false) }
+  end
+
   def test_tokens_are_stored_only_as_digests
     token = pair!
     refute SpreeAdminNative::Device.where(token_digest: token).exists?
