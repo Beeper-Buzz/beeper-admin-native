@@ -18,6 +18,8 @@ Beeper Admin talks to `admin.beeper.buzz` (Beeper-Buzz/Beeper-Admin, a fork of d
 `distributions/beeper/distribution.json` has the name, scheme, version `1.0.0`, the confirmed
 bundle ID, the EAS project `@instincts/beeper-admin-native` (`30581af3-…`, linked to this
 GitHub repo) and Apple team `5E3H5S4R65` (Material Instinct, LLC, the same team as BeeperNative).
+App Store Connect app `6839775671` (in `apps/mobile/eas.json` `submit.production.ios.ascAppId`, the
+fork's only edit outside `distributions/`; keep it when an upstream merge touches that file).
 Still to fill in:
 
 | Field | Now | Needed from **you** |
