@@ -101,6 +101,9 @@ const isObject = (v: unknown): v is Record<string, unknown> =>
 export function extractErrorMessage(data: unknown): string | undefined {
   if (!isObject(data)) return undefined;
   if (typeof data.error === 'string' && data.error) return data.error;
+  // Spree 5.4+/6 v3 APIs: { error: { code, message } }
+  if (isObject(data.error) && typeof data.error.message === 'string' && data.error.message)
+    return data.error.message;
   const errors = data.errors;
   if (Array.isArray(errors)) {
     const first = errors.find((e) => isObject(e) && (e.detail || e.title)) as

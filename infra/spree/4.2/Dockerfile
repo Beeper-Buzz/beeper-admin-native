@@ -51,6 +51,12 @@ RUN cd / && RUBYOPT=-rlogger rails _6.1.7.10_ new app \
 
 WORKDIR /app
 
+# The companion gem comes from the `gem` build context (gems/spree_admin_native). Only what
+# Bundler and railties:install:migrations need is copied, so gem code edits don't rebuild;
+# compose bind-mounts the full gem at runtime.
+COPY --from=gem spree_admin_native.gemspec /gems/spree_admin_native/
+COPY --from=gem lib/spree_admin_native/version.rb /gems/spree_admin_native/lib/spree_admin_native/
+COPY --from=gem db /gems/spree_admin_native/db
 COPY Gemfile Gemfile.lock ./
 RUN --mount=type=secret,id=build_ca,required=false \
     if [ -s /run/secrets/build_ca ]; then export SSL_CERT_FILE=/run/secrets/build_ca; fi; \

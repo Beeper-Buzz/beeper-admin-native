@@ -1,6 +1,6 @@
 # 7. Storefront kit in this monorepo, without tRPC
 
-- Status: Accepted · 2026-11-26
+- Status: Superseded by ADR 0009 (placement only; "no tRPC" still holds) · 2026-11-26
 
 ## Context
 We want an `expo-spree` package any Expo app can add for a Spree shop. No version-agnostic

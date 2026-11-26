@@ -30,6 +30,11 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     'expo-secure-store',
     'expo-font',
     [
+      'expo-camera',
+      { cameraPermission: 'Scan the pairing code shown in your Spree admin.', recordAudioAndroid: false },
+    ],
+    ['expo-notifications', { color: distribution.brandColor }],
+    [
       'expo-splash-screen',
       { backgroundColor: distribution.brandColor, image: './assets/images/splash-icon.png', imageWidth: 76 },
     ],

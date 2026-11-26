@@ -42,8 +42,8 @@ describe('probeStore', () => {
           spree_version: '4.2.5',
           gem_version: '0.1.0',
           api_families: ['api-v1'],
-          capabilities: ['orders.read', 'notifications.push', 'beeper.moderation'],
-          auth_methods: ['spreeToken', 'pairing'],
+          capabilities: ['notifications.push', 'analytics.summary', 'beeper.moderation'],
+          auth_methods: ['pairing'],
           store: { name: 'Beeper', currency: 'USD' },
         },
       },
@@ -55,9 +55,12 @@ describe('probeStore', () => {
       spreeVersion: '4.2.5',
       gem: { version: '0.1.0' },
       storeName: 'Beeper',
-      authMethods: ['spreeToken', 'pairing'],
+      authMethods: ['pairing', 'spreeToken'],
     });
-    expect(probe.capabilities).toContain('beeper.moderation');
+    // Family defaults plus the gem's extras.
+    expect(probe.capabilities).toEqual(
+      expect.arrayContaining(['orders.read', 'analytics.summary', 'beeper.moderation']),
+    );
   });
 
   it('detects Spree 4.2 from API v1 and asks for an API key', async () => {

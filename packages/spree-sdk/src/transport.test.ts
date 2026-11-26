@@ -133,6 +133,18 @@ describe('transport', () => {
     await expect(t.request({ path: '/x' })).rejects.toMatchObject({ fieldErrors: { name: ['is too long'] } });
   });
 
+  it('reads Spree 6 { error: { code, message } } bodies', async () => {
+    const { fn } = fakeFetch({
+      status: 422,
+      body: { error: { code: 'processing_error', message: "The coupon code you entered doesn't exist." } },
+    });
+    const t = createTransport({ baseUrl: 'https://shop.test', fetch: fn });
+    await expect(t.request({ path: '/x' })).rejects.toMatchObject({
+      kind: 'invalid',
+      message: "The coupon code you entered doesn't exist.",
+    });
+  });
+
   it('carries Retry-After on 429', async () => {
     const { fn } = fakeFetch({ status: 429, headers: { 'retry-after': '7' } });
     const t = createTransport({ baseUrl: 'https://shop.test', fetch: fn });

@@ -167,3 +167,61 @@ describe('store.signIn', () => {
     ).rejects.toMatchObject({ code: 'BAD_REQUEST', message: expect.stringMatching(/admin API key/) });
   });
 });
+
+describe('pairing and companion procedures', () => {
+  const json = (status: number, body: unknown) =>
+    new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
+  const gemStore = async (url: string) => {
+    const path = new URL(url).pathname;
+    if (path === '/api/admin_native/v1/capabilities')
+      return json(200, {
+        api_families: ['api-v1'],
+        capabilities: ['notifications.push', 'analytics.summary'],
+        auth_methods: ['pairing'],
+      });
+    if (path === '/api/admin_native/v1/pairings/exchange')
+      return json(201, {
+        token: 'san_devicetoken',
+        device: { id: '1', name: 'iPhone', platform: 'ios' },
+        user: { email: 'admin@example.com' },
+      });
+    return json(404, {});
+  };
+
+  it('pairs with a code and stores the device token as an API v1 key', async () => {
+    const res = await createCaller({ session: null, fetch: gemStore }).store.pair({
+      url: 'shop.test',
+      code: 'ABCDEFGHJKMN',
+      deviceName: 'iPhone',
+    });
+    expect(res.credential).toEqual({ method: 'spreeToken', token: 'san_devicetoken' });
+    expect(res.probe.preferredApi).toBe('api-v1');
+  });
+
+  it('explains when a store has no gem', async () => {
+    const fetch = async (url: string) =>
+      new URL(url).pathname === '/api/v1/orders'
+        ? json(401, { error: 'You must specify an API key.' })
+        : json(404, {});
+    await expect(
+      createCaller({ session: null, fetch }).store.pair({
+        url: 'shop.test',
+        code: 'ABCDEFGHJKMN',
+        deviceName: 'iPhone',
+      }),
+    ).rejects.toMatchObject({ code: 'BAD_REQUEST', message: expect.stringMatching(/spree_admin_native/) });
+  });
+
+  it('serves the summary from the companion when the store has it', async () => {
+    const summary = vi.fn(async () => ({ currency: 'USD' }));
+    const a = {
+      ...adapter(),
+      companion: { summary, updateCurrentDevice: vi.fn() },
+    } as unknown as SpreeAdapter;
+    await createCaller(ctx(['orders.read', 'analytics.summary'], a)).dashboard.summary();
+    expect(summary).toHaveBeenCalled();
+    await expect(createCaller(ctx(['orders.read'], a)).dashboard.summary()).rejects.toMatchObject({
+      code: 'PRECONDITION_FAILED',
+    });
+  });
+});

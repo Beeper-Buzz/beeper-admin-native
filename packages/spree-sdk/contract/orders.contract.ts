@@ -24,13 +24,17 @@ function proves(capability: string, name: string, fn: () => Promise<void>) {
 describe.runIf(enabled)(`contract: Spree ${env.label}`, () => {
   let adapter: SpreeAdapter;
   let auth: SessionAuth;
+  let hasGem = false;
   let all: Order[] = [];
 
   beforeAll(async () => {
     const probe = await probeStore({ baseUrl: env.url, timeoutMs: 10_000 });
     const transport = baseTransport();
     auth = await signIn(transport);
-    adapter = createAdapter(env.family ?? probe.preferredApi, transport.withAuth(auth));
+    hasGem = probe.gem !== null;
+    adapter = createAdapter(env.family ?? probe.preferredApi, transport.withAuth(auth), {
+      companion: hasGem,
+    });
   });
 
   afterAll(() => {
@@ -47,13 +51,43 @@ describe.runIf(enabled)(`contract: Spree ${env.label}`, () => {
     if (env.family) expect(probe.preferredApi).toBe(env.family);
   });
 
-  proves(`auth.${process.env.SPREE_EMAIL ? 'password' : 'key'}`, 'signs in and refreshes', async () => {
-    expect(auth.serialize().method).toBeTruthy();
-    if (auth.refresh) {
-      await auth.refresh();
-      await adapter.orders.list({ filter: 'all', perPage: 1 });
-    }
+  proves(
+    `auth.${process.env.SPREE_PAIRING_CODE ? 'pairing' : process.env.SPREE_EMAIL ? 'password' : 'key'}`,
+    'signs in and refreshes',
+    async () => {
+      expect(auth.serialize().method).toBeTruthy();
+      if (auth.refresh) {
+        await auth.refresh();
+        await adapter.orders.list({ filter: 'all', perPage: 1 });
+      }
+    },
+  );
+
+  it.runIf(process.env.SPREE_PAIRING_CODE)('[companion] the gem announces itself and pairing', async () => {
+    const probe = await probeStore({ baseUrl: env.url, timeoutMs: 10_000 });
+    expect(probe.gem).not.toBeNull();
+    expect(probe.authMethods).toContain('pairing');
+    expect(probe.capabilities).toEqual(
+      expect.arrayContaining(['orders.read', 'notifications.push', 'analytics.summary']),
+    );
+    results['auth.pairing'] = 'pass';
   });
+
+  it.runIf(process.env.SPREE_PAIRING_CODE)(
+    '[analytics.summary] serves Home numbers that agree with the order list',
+    async () => {
+      try {
+        const summary = await adapter.companion?.summary();
+        const unfulfilled = await adapter.orders.list({ filter: 'unfulfilled', perPage: 1 });
+        expect(summary?.ordersToFulfill).toBe(unfulfilled.totalCount);
+        expect(summary?.lowStockVariants).toBeGreaterThanOrEqual(1);
+        results['analytics.summary'] = 'pass';
+      } catch (e) {
+        results['analytics.summary'] = 'fail';
+        throw e;
+      }
+    },
+  );
 
   proves('orders.read', 'lists placed orders as valid domain orders', async () => {
     const page = await adapter.orders.list({ filter: 'all', perPage: 50 });

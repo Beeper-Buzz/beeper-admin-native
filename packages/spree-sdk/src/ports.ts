@@ -1,5 +1,6 @@
 import type { Order, OrderListFilter, Page } from '@spree-native/domain';
 import type { ApiFamily } from './capabilities/types';
+import type { CompanionPort } from './companion';
 
 export interface ListOrdersParams {
   filter: OrderListFilter;
@@ -19,4 +20,6 @@ export interface OrdersPort {
 export interface SpreeAdapter {
   readonly family: ApiFamily;
   readonly orders: OrdersPort;
+  /** Present when the store runs the spree_admin_native gem. */
+  readonly companion?: CompanionPort;
 }

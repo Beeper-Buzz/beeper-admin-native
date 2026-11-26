@@ -1,0 +1,18 @@
+<% content_for :page_title do %>Pair a device<% end %>
+
+<div style="display:flex;gap:32px;flex-wrap:wrap;align-items:flex-start">
+  <div style="background:#fff;padding:12px;border:1px solid #ddd;border-radius:8px;width:260px">
+    <%= raw @qr_svg %>
+  </div>
+  <div style="max-width:420px">
+    <ol>
+      <li>Open Spree Admin on your phone.</li>
+      <li>Enter this store's address, then choose <strong>Scan pairing code</strong>.</li>
+      <li>Point the camera at this code.</li>
+    </ol>
+    <p>Or type this code:</p>
+    <p style="font-family:ui-monospace,monospace;font-size:28px;letter-spacing:2px"><%= @code %></p>
+    <p class="text-muted">It works once and expires <%= l(@pairing.expires_at, format: :short) %>.</p>
+    <%= link_to 'Back to devices', admin_admin_native_devices_path, class: 'btn btn-outline-secondary' %>
+  </div>
+</div>

@@ -371,7 +371,6 @@ Summary here; full detail in `docs/design/design-language.md`.
 
 ## 15. Storefront kit (`expo-spree`)
 
-Scope expanded on 2026-11-26: the same monorepo also ships a storefront kit any Expo app can
-add. See `2026-11-26-expo-spree-storefront-design.md` and ADR 0007. The shared layers
-(`domain`, `spree-sdk` transport, auth, capability probe, money) are built once in Phase 0 and
-used by both.
+The storefront kit lives in its own repo, [`1instinct/expo-spree`](https://github.com/1instinct/expo-spree),
+with its own spec. It depends on this repo's `domain` and `spree-sdk` packages and reuses the
+Docker Spree matrix (ADR 0009).

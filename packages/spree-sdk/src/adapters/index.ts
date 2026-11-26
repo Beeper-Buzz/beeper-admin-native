@@ -1,4 +1,5 @@
 import type { ApiFamily } from '../capabilities/types';
+import { companion } from '../companion';
 import type { SpreeAdapter } from '../ports';
 import type { Transport } from '../transport';
 import { adminV3Orders } from './admin-v3/orders';
@@ -10,7 +11,16 @@ export { mapV1Order as mapApiV1Order } from './api-v1/mapOrder';
 export { mapOrderDocument as mapPlatformV2Orders } from './platform-v2/mapOrder';
 
 /** The adapter for a store's preferred API family. `transport` must already carry auth. */
-export function createAdapter(family: ApiFamily, transport: Transport): SpreeAdapter {
+export function createAdapter(
+  family: ApiFamily,
+  transport: Transport,
+  options: { companion?: boolean } = {},
+): SpreeAdapter {
+  const base = baseAdapter(family, transport);
+  return options.companion ? { ...base, companion: companion(transport) } : base;
+}
+
+function baseAdapter(family: ApiFamily, transport: Transport): SpreeAdapter {
   switch (family) {
     case 'api-v1':
       return { family, orders: apiV1Orders(transport) };

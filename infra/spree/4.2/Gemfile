@@ -23,3 +23,8 @@ gem 'spree_auth_devise', '4.3.4'
 gem 'spree_gateway', '3.9.4'
 
 gem 'tzinfo-data', platforms: %i[mingw mswin x64_mingw jruby]
+
+# The companion gem from this repo (gems/spree_admin_native), copied in at build time and
+# bind-mounted at runtime so edits apply without a rebuild. rqrcode pinned for Ruby 2.7.
+gem 'rqrcode', '~> 2.2'
+gem 'spree_admin_native', path: '/gems/spree_admin_native'

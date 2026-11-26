@@ -91,13 +91,17 @@ export async function probeStore(options: ProbeOptions): Promise<StoreProbe> {
   if ('data' in gem && gem.status === 200 && isRecord(gem.data)) {
     const g = gem.data as GemPayload;
     const families = g.api_families?.length ? g.api_families : ['api-v1' as const];
+    const preferred: ApiFamily =
+      (['admin-v3', 'platform-v2', 'api-v1'] as const).find((f) => families.includes(f)) ?? 'api-v1';
     return {
       baseUrl: t.baseUrl,
       apiFamilies: families,
-      preferredApi:
-        (['admin-v3', 'platform-v2', 'api-v1'] as const).find((f) => families.includes(f)) ?? 'api-v1',
-      capabilities: (g.capabilities ?? []) as Capability[],
-      authMethods: g.auth_methods ?? ['password', 'pairing'],
+      preferredApi: preferred,
+      // The gem lists only what it adds; merge with what the API family offers anyway.
+      capabilities: [
+        ...new Set([...FAMILY_CAPABILITIES[preferred], ...((g.capabilities ?? []) as Capability[])]),
+      ],
+      authMethods: [...new Set([...(g.auth_methods ?? []), ...FAMILY_AUTH[preferred]])],
       storeName: g.store?.name ?? info.name,
       currency: g.store?.currency ?? info.currency,
       spreeVersion: g.spree_version ?? null,

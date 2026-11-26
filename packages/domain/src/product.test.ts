@@ -45,3 +45,36 @@ describe('displayName', () => {
     expect(displayName({ firstName: null, lastName: null, email: 'm@x.com' })).toBe('m@x.com');
   });
 });
+
+describe('storefront fields', () => {
+  it('default to empty so admin adapters need not fill them', () => {
+    const p = Product.parse(product);
+    expect(p.optionTypes).toEqual([]);
+    expect(p.variants[0]?.optionValues).toEqual([]);
+    expect(p.variants[0]?.purchasable).toBeNull();
+  });
+
+  it('carry option values with swatches', () => {
+    const p = Product.parse({
+      ...product,
+      optionTypes: [{ id: 'ot1', name: 'color', presentation: 'Color', position: 1 }],
+      variants: [
+        {
+          ...variant('2', false, 3),
+          purchasable: true,
+          optionValues: [
+            {
+              id: 'ov1',
+              optionTypeId: 'ot1',
+              name: 'red',
+              presentation: 'Red',
+              position: 1,
+              color: '#FF0000',
+            },
+          ],
+        },
+      ],
+    });
+    expect(p.variants[0]?.optionValues[0]?.color).toBe('#FF0000');
+  });
+});

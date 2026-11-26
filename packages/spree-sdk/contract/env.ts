@@ -7,6 +7,7 @@ import {
   spreeTokenAuth,
 } from '../src/auth';
 import type { ApiFamily } from '../src/capabilities/types';
+import { exchangePairingCode } from '../src/companion';
 import { createTransport, type Transport } from '../src/transport';
 
 /**
@@ -25,6 +26,14 @@ export const enabled = env.url !== '';
 
 export async function signIn(transport: Transport): Promise<SessionAuth> {
   const e = process.env;
+  if (e.SPREE_PAIRING_CODE) {
+    const paired = await exchangePairingCode(transport, {
+      code: e.SPREE_PAIRING_CODE,
+      deviceName: 'Contract test',
+      platform: 'ci',
+    });
+    return spreeTokenAuth(paired.token);
+  }
   if (e.SPREE_TOKEN) return spreeTokenAuth(e.SPREE_TOKEN);
   if (e.SPREE_API_KEY) return apiKeyAuth(e.SPREE_API_KEY);
   if (e.SPREE_CLIENT_ID && e.SPREE_CLIENT_SECRET)

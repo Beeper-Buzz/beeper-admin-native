@@ -31,6 +31,8 @@ services:
     image: spree-admin-native/spree:4.2.7
     build:
       context: ./4.2
+      additional_contexts:
+        gem: ../../gems/spree_admin_native
       # host network + optional proxy/CA only matter behind an intercepting
       # proxy; they are harmless (and unused) everywhere else.
       network: host
@@ -52,6 +54,7 @@ services:
       - "3042:3000"
     volumes:
       - ./4.2:/seed:ro
+      - ../../gems/spree_admin_native:/gems/spree_admin_native:ro
       - spree42_storage:/app/storage
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS -o /dev/null 'http://localhost:3000/api/v2/storefront/products?per_page=1' || exit 1"]

@@ -3,6 +3,7 @@ import {
   apiKeyAuth,
   createAdapter,
   createTransport,
+  exchangePairingCode,
   oauthClientCredentials,
   probeStore,
   type SessionAuth,
@@ -93,6 +94,44 @@ export const storeRouter = router({
         });
       }
       return { probe, credential: auth.serialize() };
+    }),
+
+  /**
+   * Sign in with a one-time code from Spree admin (companion gem). The device token works as an
+   * API v1 key, so the session uses the api-v1 adapter even on stores that also have Platform v2.
+   */
+  pair: publicProcedure
+    .input(
+      z.object({
+        url,
+        code: z.string().trim().min(6),
+        deviceName: z.string().trim().min(1).max(80),
+        platform: z.string().max(20).optional(),
+      }),
+    )
+    .mutation(async ({ ctx, input }): Promise<{ probe: StoreProbe; credential: StoredCredential }> => {
+      const probe = await probeStore(
+        ctx.fetch ? { baseUrl: input.url, fetch: ctx.fetch } : { baseUrl: input.url },
+      );
+      if (!probe.authMethods.includes('pairing') || !probe.apiFamilies.includes('api-v1')) {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message:
+            "This store can't pair devices. Ask its developer to install the spree_admin_native gem, or sign in another way.",
+        });
+      }
+      const options: TransportOptions = { baseUrl: probe.baseUrl };
+      if (ctx.fetch) options.fetch = ctx.fetch;
+      const pairing: Parameters<typeof exchangePairingCode>[1] = {
+        code: input.code,
+        deviceName: input.deviceName,
+      };
+      if (input.platform) pairing.platform = input.platform;
+      const result = await exchangePairingCode(createTransport(options), pairing);
+      return {
+        probe: { ...probe, preferredApi: 'api-v1' },
+        credential: spreeTokenAuth(result.token).serialize(),
+      };
     }),
 
   current: storeProcedure.query(({ ctx }) => ctx.session.probe),

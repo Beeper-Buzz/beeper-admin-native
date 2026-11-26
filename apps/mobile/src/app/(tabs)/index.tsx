@@ -1,9 +1,9 @@
 import { layout, radius, space } from '@spree-native/ui';
-import { useQueries } from '@tanstack/react-query';
+import { useQueries, useQuery } from '@tanstack/react-query';
 import { router } from 'expo-router';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Screen } from '@/components/primitives';
+import { MoneyText, Screen } from '@/components/primitives';
 import { Label, Text } from '@/components/text';
 import { useSession } from '@/session/session';
 import { useTheme } from '@/theme/theme';
@@ -13,6 +13,8 @@ export default function HomeScreen() {
   const trpc = useTRPC();
   const { colors } = useTheme();
   const { state } = useSession();
+  const hasSummary = state.store?.probe.capabilities.includes('analytics.summary') ?? false;
+  const summary = useQuery({ ...trpc.dashboard.summary.queryOptions(), enabled: hasSummary });
   const [unfulfilled, unpaid] = useQueries({
     queries: [
       trpc.orders.list.queryOptions({ filter: 'unfulfilled', perPage: 1 }),
@@ -22,8 +24,23 @@ export default function HomeScreen() {
   const storeName =
     state.store?.probe.storeName ?? state.store?.probe.baseUrl.replace(/^https?:\/\//, '') ?? '';
   const todo: [number | undefined, string, string, 'attention' | 'info'][] = [
-    [unfulfilled?.data?.totalCount, 'orders to fulfil', 'unfulfilled', 'attention'],
-    [unpaid?.data?.totalCount, 'payments due', 'unpaid', 'attention'],
+    [
+      summary.data?.ordersToFulfill ?? unfulfilled?.data?.totalCount,
+      'orders to fulfil',
+      'unfulfilled',
+      'attention',
+    ],
+    [summary.data?.paymentsDue ?? unpaid?.data?.totalCount, 'payments due', 'unpaid', 'attention'],
+    ...(summary.data
+      ? [
+          [summary.data.lowStockVariants, 'variants low on stock', 'low-stock', 'info'] as [
+            number,
+            string,
+            string,
+            'info',
+          ],
+        ]
+      : []),
   ];
 
   return (
@@ -40,6 +57,15 @@ export default function HomeScreen() {
               {storeName}
             </Text>
           </View>
+          {summary.data ? (
+            <View style={{ gap: space[1] }}>
+              <Label>Sales today</Label>
+              <MoneyText value={summary.data.today.sales} size="hero" font="display" />
+              <Text size="footnote" font="mono" tone="muted">
+                {summary.data.today.orders} {summary.data.today.orders === 1 ? 'order' : 'orders'}
+              </Text>
+            </View>
+          ) : null}
           <View style={{ gap: space[2] }}>
             <Label>To do</Label>
             <View style={[styles.list, { borderColor: colors.line, backgroundColor: colors.line }]}>
@@ -63,9 +89,12 @@ export default function HomeScreen() {
               ))}
             </View>
           </View>
-          <Text size="footnote" tone="muted">
-            Today's sales, low stock and activity arrive in v0.1.
-          </Text>
+          {hasSummary ? null : (
+            <Text size="footnote" tone="muted">
+              Install the spree_admin_native gem on your store for today's sales, low stock and order
+              notifications.
+            </Text>
+          )}
         </ScrollView>
       </SafeAreaView>
     </Screen>

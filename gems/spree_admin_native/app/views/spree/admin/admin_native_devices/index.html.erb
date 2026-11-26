@@ -1,0 +1,28 @@
+<% content_for :page_title do %>Mobile app devices<% end %>
+<% content_for :page_actions do %>
+  <%= button_to 'Pair a device', pair_admin_admin_native_devices_path, method: :post, class: 'btn btn-primary' %>
+<% end %>
+
+<p>Sign in to the Spree Admin mobile app by scanning a pairing code instead of typing a password or API key.
+Each device gets its own key, which you can sign out here at any time.</p>
+
+<% if @devices.any? %>
+  <table class="table">
+    <thead><tr><th>Device</th><th>Platform</th><th>Notifications</th><th>Last used</th><th>Paired</th><th></th></tr></thead>
+    <tbody>
+      <% @devices.each do |device| %>
+        <tr>
+          <td><%= device.name %></td>
+          <td><%= device.platform %></td>
+          <td><%= device.push_token.present? && device.push_enabled ? 'On' : 'Off' %></td>
+          <td><%= device.last_used_at ? "#{time_ago_in_words(device.last_used_at)} ago" : 'Never' %></td>
+          <td><%= l(device.created_at.to_date) %></td>
+          <td><%= button_to 'Sign out', admin_admin_native_device_path(device), method: :delete, class: 'btn btn-sm btn-outline-danger',
+                            data: { confirm: "Sign out #{device.name}? It will need a new pairing code." } %></td>
+        </tr>
+      <% end %>
+    </tbody>
+  </table>
+<% else %>
+  <p class="text-muted">No devices yet. Tap <strong>Pair a device</strong> to add one.</p>
+<% end %>

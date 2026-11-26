@@ -26,7 +26,12 @@ const SessionContext = createContext<SessionApi | null>(null);
 export function buildSession(store: StoredStore, onRotate: (c: StoredCredential) => void): Session {
   const transport = createTransport({ baseUrl: store.probe.baseUrl });
   const auth = restoreAuth(transport, store.credential, { onChange: onRotate });
-  return { probe: store.probe, adapter: createAdapter(store.probe.preferredApi, transport.withAuth(auth)) };
+  return {
+    probe: store.probe,
+    adapter: createAdapter(store.probe.preferredApi, transport.withAuth(auth), {
+      companion: store.probe.gem !== null,
+    }),
+  };
 }
 
 export function SessionProvider({ children }: { children: ReactNode }) {
