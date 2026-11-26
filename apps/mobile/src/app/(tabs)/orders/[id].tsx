@@ -1,4 +1,4 @@
-import { layout, radius, space } from '@spree-native/ui';
+import { layout, radius, space } from '@instincts/spree-ui';
 import { useQuery } from '@tanstack/react-query';
 import { Stack, useLocalSearchParams } from 'expo-router';
 import { ActivityIndicator, ScrollView, StyleSheet, View } from 'react-native';

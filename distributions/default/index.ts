@@ -1,4 +1,4 @@
-import { counterTheme } from '@spree-native/ui';
+import { counterTheme } from '@instincts/spree-ui';
 import type { DistributionConfig, FontAssets } from '../types';
 import config from './distribution.json';
 

@@ -1,4 +1,4 @@
-import type { Order, OrderListFilter, Page } from '@spree-native/domain';
+import type { Order, OrderListFilter, Page } from '@instincts/spree-domain';
 import { SpreeError } from '../../errors';
 import type { ListOrdersParams, OrdersPort } from '../../ports';
 import type { QueryObject } from '../../query';

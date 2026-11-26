@@ -1,5 +1,5 @@
 {
-  "name": "@spree-native/config",
+  "name": "@instincts/spree-config",
   "version": "0.0.0",
   "private": true,
   "description": "Shared TypeScript and Vitest presets",

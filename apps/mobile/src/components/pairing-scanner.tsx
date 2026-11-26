@@ -1,5 +1,5 @@
-import { parsePairingPayload } from '@spree-native/spree-sdk';
-import { layout, radius, space } from '@spree-native/ui';
+import { parsePairingPayload } from '@instincts/spree-sdk';
+import { layout, radius, space } from '@instincts/spree-ui';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useRef } from 'react';
 import { Modal, StyleSheet, View } from 'react-native';

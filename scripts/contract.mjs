@@ -37,7 +37,7 @@ for (const r of runs) {
     SPREE_EXPECT_FAMILY: r.family,
     ...r.env,
   };
-  const res = spawnSync('pnpm', ['--filter', '@spree-native/spree-sdk', 'contract'], {
+  const res = spawnSync('pnpm', ['--filter', '@instincts/spree-sdk', 'contract'], {
     stdio: 'inherit',
     env,
   });

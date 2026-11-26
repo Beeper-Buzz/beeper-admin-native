@@ -1,1 +1,1 @@
-{ "extends": "@spree-native/config/tsconfig.lib.json", "include": ["src", "test"] }
+{ "extends": "@instincts/spree-config/tsconfig.lib.json", "include": ["src", "test"] }

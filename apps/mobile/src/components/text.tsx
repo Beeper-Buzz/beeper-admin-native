@@ -1,4 +1,4 @@
-import { MAX_HERO_FONT_SCALE, type TypeStep, typeScale } from '@spree-native/ui';
+import { MAX_HERO_FONT_SCALE, type TypeStep, typeScale } from '@instincts/spree-ui';
 import { Text as RNText, type TextProps } from 'react-native';
 import { useTheme } from '@/theme/theme';
 

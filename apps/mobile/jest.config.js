@@ -10,6 +10,6 @@ module.exports = {
   },
   // Workspace packages ship TypeScript source; let babel-jest compile them.
   transformIgnorePatterns: [
-    'node_modules/(?!(?:.pnpm/)?((jest-)?react-native|@react-native(-community)?|expo(nent)?|@expo(nent)?/.*|@expo-google-fonts/.*|react-navigation|@react-navigation/.*|@spree-native/.*|@trpc/.*|@tanstack/.*|zod|@spree/.*))',
+    'node_modules/(?!(?:.pnpm/)?((jest-)?react-native|@react-native(-community)?|expo(nent)?|@expo(nent)?/.*|@expo-google-fonts/.*|react-navigation|@react-navigation/.*|@instincts/spree-.*|@trpc/.*|@tanstack/.*|zod|@spree/.*))',
   ],
 };

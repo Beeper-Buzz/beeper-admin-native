@@ -1,7 +1,7 @@
 {
-  "$comment": "Bundle ID follows BeeperNative (com.beeper.Buzz); confirm before the first build. eas.projectId comes from `eas init` under the instincts account (docs/beeper/launch.md).",
+  "$comment": "Bundle ID com.beeper.admin is confirmed. The slug matches the EAS project instincts/beeper-admin-native; eas.projectId is its ID from expo.dev (docs/beeper/launch.md).",
   "name": "Beeper Admin",
-  "slug": "beeper-admin",
+  "slug": "beeper-admin-native",
   "scheme": "beeperadmin",
   "version": "1.0.0",
   "ios": {

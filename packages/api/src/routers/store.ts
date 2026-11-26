@@ -11,7 +11,7 @@ import {
   type StoreProbe,
   spreeTokenAuth,
   type TransportOptions,
-} from '@spree-native/spree-sdk';
+} from '@instincts/spree-sdk';
 import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
 import { publicProcedure, router, storeProcedure } from '../trpc';

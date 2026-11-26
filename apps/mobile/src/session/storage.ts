@@ -1,4 +1,4 @@
-import type { StoredCredential, StoreProbe } from '@spree-native/spree-sdk';
+import type { StoredCredential, StoreProbe } from '@instincts/spree-sdk';
 import * as SecureStore from 'expo-secure-store';
 
 /** One connected store, as kept in the device keychain. */

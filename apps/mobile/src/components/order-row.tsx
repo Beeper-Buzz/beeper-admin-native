@@ -1,5 +1,5 @@
-import { cityLine, type Order } from '@spree-native/domain';
-import { layout, space } from '@spree-native/ui';
+import { cityLine, type Order } from '@instincts/spree-domain';
+import { layout, space } from '@instincts/spree-ui';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { useTheme } from '@/theme/theme';
 import { Badge, type BadgeTone, MoneyText, SpreeNumberText } from './primitives';

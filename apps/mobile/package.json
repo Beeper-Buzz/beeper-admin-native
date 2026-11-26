@@ -1,5 +1,5 @@
 {
-  "name": "@spree-native/mobile",
+  "name": "@instincts/spree-mobile",
   "version": "0.0.0",
   "main": "expo-router/entry",
   "dependencies": {
@@ -7,10 +7,10 @@
     "@expo-google-fonts/geist": "^0.4.2",
     "@expo-google-fonts/geist-mono": "^0.4.3",
     "@expo/ui": "~58.0.30",
-    "@spree-native/api": "workspace:*",
-    "@spree-native/domain": "workspace:*",
-    "@spree-native/spree-sdk": "workspace:*",
-    "@spree-native/ui": "workspace:*",
+    "@instincts/spree-api": "workspace:*",
+    "@instincts/spree-domain": "workspace:*",
+    "@instincts/spree-sdk": "workspace:*",
+    "@instincts/spree-ui": "workspace:*",
     "@tanstack/react-query": "^5.108.4",
     "@trpc/client": "^11.31.3",
     "@trpc/tanstack-react-query": "^11.31.3",

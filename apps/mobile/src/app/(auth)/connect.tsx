@@ -1,5 +1,5 @@
-import type { StoreProbe } from '@spree-native/spree-sdk';
-import { space } from '@spree-native/ui';
+import type { StoreProbe } from '@instincts/spree-sdk';
+import { space } from '@instincts/spree-ui';
 import { useMutation } from '@tanstack/react-query';
 import { router } from 'expo-router';
 import { useState } from 'react';

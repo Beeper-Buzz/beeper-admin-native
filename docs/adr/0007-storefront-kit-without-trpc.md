@@ -9,9 +9,9 @@ has not been published since 2023. The admin app already needs the same transpor
 model, capability probe and domain models.
 
 ## Decision
-- Build the storefront kit in this monorepo: `@spree-native/storefront` (framework-free client
+- Build the storefront kit in this monorepo: `@instincts/spree-storefront` (framework-free client
   with `storefront-v2` and `store-v3` adapters) and `expo-spree` (provider, hooks, config plugin).
-- Share `@spree-native/domain` and `@spree-native/spree-sdk` with the admin app.
+- Share `@instincts/spree-domain` and `@instincts/spree-sdk` with the admin app.
 - Do not use tRPC in the storefront kit; expose a plain client and TanStack Query hooks.
 
 ## Consequences

@@ -1,6 +1,6 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import type { Order } from '@spree-native/domain';
+import type { Order } from '@instincts/spree-domain';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createAdapter } from '../src/adapters';
 import type { SessionAuth } from '../src/auth';

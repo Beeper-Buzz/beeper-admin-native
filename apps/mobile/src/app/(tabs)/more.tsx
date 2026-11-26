@@ -1,4 +1,4 @@
-import { layout, space } from '@spree-native/ui';
+import { layout, space } from '@instincts/spree-ui';
 import { ScrollView, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { CapabilityList } from '@/components/capability-list';

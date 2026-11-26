@@ -1,4 +1,4 @@
-import { OrderListFilter } from '@spree-native/domain';
+import { OrderListFilter } from '@instincts/spree-domain';
 import { z } from 'zod';
 import { requireCapability, router } from '../trpc';
 

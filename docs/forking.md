@@ -21,7 +21,7 @@ distributions/
 ## `distribution.config.ts`
 
 ```ts
-import { defineDistribution } from '@spree-native/extension-sdk/distribution';
+import { defineDistribution } from '@instincts/spree-extension-sdk/distribution';
 
 export default defineDistribution({
   name: 'Acme Admin',
@@ -32,7 +32,7 @@ export default defineDistribution({
   eas: { projectId: '00000000-0000-0000-0000-000000000000', updatesChannel: 'production' },
   defaultStoreUrl: 'https://admin.acme.com',   // pre-fills Connect; omit for multi-store
   lockToStore: false,                          // true hides "add another store"
-  extensions: ['@spree-native/ext-analytics', './extensions/acme-loyalty'],
+  extensions: ['@instincts/spree-ext-analytics', './extensions/acme-loyalty'],
   features: { marketplace: false, relay: false },
   telemetry: { sentryDsn: process.env.SENTRY_DSN },
 });

@@ -1,4 +1,4 @@
-import { contrastFailures } from '@spree-native/ui';
+import { contrastFailures } from '@instincts/spree-ui';
 import { describe, expect, it } from 'vitest';
 import { theme } from './theme';
 

@@ -1,5 +1,5 @@
 {
-  "extends": "@spree-native/config/tsconfig.lib.json",
+  "extends": "@instincts/spree-config/tsconfig.lib.json",
   "include": ["src", "test", "contract"],
   "compilerOptions": {
     "types": ["node"]

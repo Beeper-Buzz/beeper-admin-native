@@ -33,7 +33,7 @@ export default function RootLayout() {
 }
 
 function Navigation({ ready }: { ready: boolean }) {
-  const { state } = useSession();
+  const { state, signOut } = useSession();
   const { colors, scheme } = useTheme();
   const booted = ready && state.status !== 'loading';
 
@@ -43,7 +43,7 @@ function Navigation({ ready }: { ready: boolean }) {
   if (!booted) return null;
 
   return (
-    <ApiProvider session={state.session}>
+    <ApiProvider session={state.session} onAuthError={signOut}>
       <StatusBar style={scheme === 'dark' ? 'light' : 'dark'} />
       <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.bg } }}>
         <Stack.Protected guard={state.status === 'ready'}>

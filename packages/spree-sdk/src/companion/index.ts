@@ -1,4 +1,4 @@
-import { money, StoreSummary } from '@spree-native/domain';
+import { money, StoreSummary } from '@instincts/spree-domain';
 import { SpreeError } from '../errors';
 import type { Transport } from '../transport';
 

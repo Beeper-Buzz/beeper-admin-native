@@ -1,5 +1,5 @@
-import type { AuthMethod } from '@spree-native/spree-sdk';
-import { space } from '@spree-native/ui';
+import type { AuthMethod } from '@instincts/spree-sdk';
+import { space } from '@instincts/spree-ui';
 import { useMutation } from '@tanstack/react-query';
 import * as Device from 'expo-device';
 import { useLocalSearchParams } from 'expo-router';

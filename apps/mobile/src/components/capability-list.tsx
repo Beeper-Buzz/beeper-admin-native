@@ -1,4 +1,4 @@
-import { space } from '@spree-native/ui';
+import { space } from '@instincts/spree-ui';
 import { View } from 'react-native';
 import { Label, Text } from './text';
 

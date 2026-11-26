@@ -55,7 +55,7 @@ Expo SDK 58, Docker Compose (Spree matrix).
 - [ ] Run `pnpm install && pnpm typecheck` → passes with zero packages.
 - [ ] Commit: `[Chore]: Workspace tooling. Changes:`
 
-## Task 2: `@spree-native/domain` — Money
+## Task 2: `@instincts/spree-domain` — Money
 
 **Files:** `packages/domain/src/money.ts`, `packages/domain/src/money.test.ts`
 
@@ -84,12 +84,12 @@ describe('Money', () => {
 });
 ```
 
-- [ ] `pnpm --filter @spree-native/domain test` → fails (module missing).
+- [ ] `pnpm --filter @instincts/spree-domain test` → fails (module missing).
 - [ ] Implement with `bigint` minor units internally (currency exponent from
       `Intl.NumberFormat(...).resolvedOptions().maximumFractionDigits`).
 - [ ] Tests pass. Commit.
 
-## Task 3: `@spree-native/domain` — Order, LineItem, Shipment, Payment, Customer
+## Task 3: `@instincts/spree-domain` — Order, LineItem, Shipment, Payment, Customer
 
 **Files:** `packages/domain/src/{order,shipment,payment,customer,address,product}.ts` + tests
 
@@ -188,7 +188,7 @@ describe('Money', () => {
 - [ ] CI matrix: 4.2 and latest now; 4.7, 4.10, 5.0, 5.3 added in Phase 1.
 - [ ] Commit.
 
-## Task 11: `@spree-native/api` router skeleton
+## Task 11: `@instincts/spree-api` router skeleton
 
 **Files:** `packages/api/src/{trpc,context,router,errors}.ts`,
 `packages/api/src/routers/{store,orders}.ts` + tests
@@ -200,7 +200,7 @@ describe('Money', () => {
 - [ ] Context carries `{ adapter, capabilities, storeId }`.
 - [ ] Commit.
 
-## Task 12: `@spree-native/ui` tokens
+## Task 12: `@instincts/spree-ui` tokens
 
 **Files:** `packages/ui/src/tokens/{color,type,space,radius,motion}.ts`,
 `packages/ui/tailwind-preset.js`, `packages/ui/src/tokens/tokens.test.ts`

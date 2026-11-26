@@ -1,5 +1,5 @@
-import type { SpreeAdapter, StoreProbe } from '@spree-native/spree-sdk';
-import { type FetchLike, isSpreeError } from '@spree-native/spree-sdk';
+import type { SpreeAdapter, StoreProbe } from '@instincts/spree-sdk';
+import { type FetchLike, isSpreeError } from '@instincts/spree-sdk';
 import { initTRPC, TRPCError } from '@trpc/server';
 import { capabilityMessage } from './capabilityMessages';
 

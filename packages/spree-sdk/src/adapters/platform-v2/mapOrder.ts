@@ -8,7 +8,7 @@ import {
   type OrderPaymentStatus,
   type OrderStatus,
   type Payment,
-} from '@spree-native/domain';
+} from '@instincts/spree-domain';
 import { type Document, JsonApiGraph, num, type Resource, str } from '../jsonapi';
 
 /** Spree 4.x checkout steps are all "draft" to a merchant. */

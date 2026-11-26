@@ -1,5 +1,5 @@
-import { formatMoney, type Money } from '@spree-native/domain';
-import { layout, radius, space } from '@spree-native/ui';
+import { formatMoney, type Money } from '@instincts/spree-domain';
+import { layout, radius, space } from '@instincts/spree-ui';
 import {
   ActivityIndicator,
   Pressable,

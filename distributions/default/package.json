@@ -1,5 +1,5 @@
 {
-  "name": "@spree-native/distribution-default",
+  "name": "@instincts/spree-distribution-default",
   "version": "0.0.0",
   "private": true,
   "description": "The upstream Spree Admin Native distribution: name, identifiers and theme",
@@ -9,6 +9,6 @@
     "./config": "./distribution.json"
   },
   "dependencies": {
-    "@spree-native/ui": "workspace:*"
+    "@instincts/spree-ui": "workspace:*"
   }
 }

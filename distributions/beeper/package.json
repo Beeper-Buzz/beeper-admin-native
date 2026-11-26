@@ -1,5 +1,5 @@
 {
-  "name": "@spree-native/distribution-beeper",
+  "name": "@instincts/spree-distribution-beeper",
   "version": "0.0.0",
   "private": true,
   "description": "Beeper Admin distribution: identity, Δ8 theme and fonts",
@@ -15,6 +15,6 @@
     "@expo-google-fonts/barlow": "^0.4.1",
     "@expo-google-fonts/ibm-plex-mono": "^0.4.2",
     "@expo-google-fonts/press-start-2p": "^0.4.1",
-    "@spree-native/ui": "workspace:*"
+    "@instincts/spree-ui": "workspace:*"
   }
 }

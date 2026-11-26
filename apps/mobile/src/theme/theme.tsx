@@ -1,4 +1,4 @@
-import { type ColorScheme, counterTheme, fonts, type Palette, type Theme } from '@spree-native/ui';
+import { type ColorScheme, counterTheme, fonts, type Palette, type Theme } from '@instincts/spree-ui';
 import { createContext, type ReactNode, useContext, useMemo } from 'react';
 import { useColorScheme } from 'react-native';
 

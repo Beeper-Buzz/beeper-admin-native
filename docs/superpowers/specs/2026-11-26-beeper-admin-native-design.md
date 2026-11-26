@@ -68,7 +68,7 @@ BeeperNative JUCE engine. Light theme: offered but secondary.
 
 ## 5. Beeper native extensions
 
-Each lives in `distributions/beeper/extensions/<name>` and uses `@spree-native/extension-sdk`.
+Each lives in `distributions/beeper/extensions/<name>` and uses `@instincts/spree-extension-sdk`.
 
 | Extension | Slots | dna-admin source today | Push |
 | --- | --- | --- | --- |

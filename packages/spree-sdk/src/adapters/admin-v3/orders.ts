@@ -1,5 +1,5 @@
+import type { OrderListFilter, Page } from '@instincts/spree-domain';
 import type { PaginatedResponse, Order as V3Order } from '@spree/admin-sdk';
-import type { OrderListFilter, Page } from '@spree-native/domain';
 import { SpreeError } from '../../errors';
 import type { ListOrdersParams, OrdersPort } from '../../ports';
 import type { QueryObject } from '../../query';

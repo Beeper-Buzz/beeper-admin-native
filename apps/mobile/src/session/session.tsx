@@ -1,11 +1,11 @@
-import type { Session } from '@spree-native/api';
+import type { Session } from '@instincts/spree-api';
 import {
   createAdapter,
   createTransport,
   restoreAuth,
   type StoredCredential,
   type StoreProbe,
-} from '@spree-native/spree-sdk';
+} from '@instincts/spree-sdk';
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { loadActiveStore, removeStore, type StoredStore, saveStore, storeIdFor } from './storage';
 

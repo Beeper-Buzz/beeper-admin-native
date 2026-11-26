@@ -1,21 +1,62 @@
 {
-  "name": "@spree-native/domain",
-  "version": "0.0.0",
-  "description": "Normalised Spree commerce models (zod) shared by the admin app and expo-spree",
+  "name": "@instincts/spree-domain",
+  "version": "0.1.0",
+  "description": "Version-neutral Spree Commerce models (zod): money, orders, products, catalog, customers. Shared by Spree Admin Native and expo-spree.",
+  "keywords": [
+    "spree",
+    "spree-commerce",
+    "ecommerce",
+    "zod",
+    "models"
+  ],
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/1instinct/spree-admin-native.git",
+    "directory": "packages/domain"
+  },
+  "homepage": "https://github.com/1instinct/spree-admin-native/tree/claude/admin-native-apps-planning-s43gki/packages/domain#readme",
+  "bugs": "https://github.com/1instinct/spree-admin-native/issues",
   "type": "module",
   "sideEffects": false,
   "exports": {
     ".": "./src/index.ts"
   },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
   "scripts": {
     "test": "vitest run",
-    "typecheck": "tsc -p ."
+    "typecheck": "tsc -p .",
+    "build": "tsup"
   },
   "dependencies": {
     "zod": "^4.6.7"
   },
   "devDependencies": {
-    "@spree-native/config": "workspace:*"
+    "@instincts/spree-config": "workspace:*",
+    "tsup": "^9.0.0"
+  },
+  "publishConfig": {
+    "access": "public",
+    "main": "./dist/index.cjs",
+    "module": "./dist/index.js",
+    "types": "./dist/index.d.ts",
+    "exports": {
+      ".": {
+        "import": {
+          "types": "./dist/index.d.ts",
+          "default": "./dist/index.js"
+        },
+        "require": {
+          "types": "./dist/index.d.cts",
+          "default": "./dist/index.cjs"
+        }
+      }
+    }
   }
 }

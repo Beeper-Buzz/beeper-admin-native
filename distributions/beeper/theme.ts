@@ -1,4 +1,4 @@
-import { defineTheme } from '@spree-native/ui';
+import { defineTheme } from '@instincts/spree-ui';
 
 /** Beeper Δ8 tokens, from BeeperNative tailwind.config.js / ThemeObject.ts (fork spec §4). */
 export const theme = defineTheme({

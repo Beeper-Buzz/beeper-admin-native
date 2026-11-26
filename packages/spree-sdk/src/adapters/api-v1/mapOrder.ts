@@ -8,7 +8,7 @@ import {
   type OrderPaymentStatus,
   type OrderStatus,
   type Payment,
-} from '@spree-native/domain';
+} from '@instincts/spree-domain';
 
 /** Spree 4.2–4.x legacy REST API v1 shapes (see infra/spree/recordings/4.2). Only what we read. */
 export interface V1Address {

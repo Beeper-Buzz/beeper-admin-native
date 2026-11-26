@@ -4,7 +4,7 @@
 
 ## Decision
 The storefront kit lives in [`1instinct/expo-spree`](https://github.com/1instinct/expo-spree).
-This repo keeps owning the shared `@spree-native/domain` and `@spree-native/spree-sdk` packages
+This repo keeps owning the shared `@instincts/spree-domain` and `@instincts/spree-sdk` packages
 and the Docker Spree matrix; expo-spree depends on them (git dependencies until they are on npm)
 and its CI reuses `scripts/spree-up.mjs`. The storefront kit still does not use tRPC.
 

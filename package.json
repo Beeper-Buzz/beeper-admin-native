@@ -19,7 +19,8 @@
   "devDependencies": {
     "@biomejs/biome": "^2.6.9",
     "@changesets/cli": "^3.0.3",
-    "@spree-native/config": "workspace:*",
+    "@instincts/spree-config": "workspace:*",
+    "tsup": "^9.0.0",
     "turbo": "^2.11.13",
     "typescript": "~5.9.3",
     "vitest": "^5.1.2"

@@ -1,10 +1,3 @@
-import type {
-  Address as V3Address,
-  Fulfillment as V3Fulfillment,
-  LineItem as V3LineItem,
-  Order as V3Order,
-  Payment as V3Payment,
-} from '@spree/admin-sdk';
 import {
   type Address,
   type Fulfillment,
@@ -15,7 +8,14 @@ import {
   type OrderPaymentStatus,
   type OrderStatus,
   type Payment,
-} from '@spree-native/domain';
+} from '@instincts/spree-domain';
+import type {
+  Address as V3Address,
+  Fulfillment as V3Fulfillment,
+  LineItem as V3LineItem,
+  Order as V3Order,
+  Payment as V3Payment,
+} from '@spree/admin-sdk';
 
 const ORDER_STATUS: Record<string, OrderStatus> = { draft: 'draft', placed: 'placed', canceled: 'canceled' };
 

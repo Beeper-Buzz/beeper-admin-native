@@ -1,5 +1,5 @@
 {
-  "name": "@spree-native/api",
+  "name": "@instincts/spree-api",
   "version": "0.0.0",
   "private": true,
   "description": "tRPC router for the Spree Admin Native app; runs in the app via a local link or on the relay",
@@ -14,13 +14,13 @@
     "typecheck": "tsc -p ."
   },
   "dependencies": {
-    "@spree-native/domain": "workspace:*",
-    "@spree-native/spree-sdk": "workspace:*",
+    "@instincts/spree-domain": "workspace:*",
+    "@instincts/spree-sdk": "workspace:*",
     "@trpc/client": "^11.31.3",
     "@trpc/server": "^11.31.3",
     "zod": "^4.6.7"
   },
   "devDependencies": {
-    "@spree-native/config": "workspace:*"
+    "@instincts/spree-config": "workspace:*"
   }
 }

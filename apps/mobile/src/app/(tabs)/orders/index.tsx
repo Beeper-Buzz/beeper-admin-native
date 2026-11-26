@@ -1,5 +1,5 @@
-import type { OrderListFilter } from '@spree-native/domain';
-import { layout, radius, space } from '@spree-native/ui';
+import type { OrderListFilter } from '@instincts/spree-domain';
+import { layout, radius, space } from '@instincts/spree-ui';
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { router } from 'expo-router';
 import { useState } from 'react';

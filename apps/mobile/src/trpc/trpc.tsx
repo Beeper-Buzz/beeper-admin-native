@@ -1,7 +1,7 @@
-import { type AppRouter, appRouter, type Session } from '@spree-native/api';
-import { shouldRetry } from '@spree-native/spree-sdk';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { createTRPCClient, unstable_localLink } from '@trpc/client';
+import { type AppRouter, appRouter, type Session } from '@instincts/spree-api';
+import { shouldRetry } from '@instincts/spree-sdk';
+import { MutationCache, QueryCache, QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { createTRPCClient, localLink } from '@trpc/client';
 import { createTRPCContext } from '@trpc/tanstack-react-query';
 import { type ReactNode, useEffect, useRef, useState } from 'react';
 
@@ -11,8 +11,26 @@ export const { TRPCProvider, useTRPC } = createTRPCContext<AppRouter>();
  * The router runs inside the app (ADR 0002). Each call reads the current session from a ref,
  * so switching stores doesn't rebuild the client.
  */
-export function ApiProvider({ session, children }: { session: Session | null; children: ReactNode }) {
+/** True for a tRPC error whose Spree kind is `auth` (revoked device, expired or rejected key). */
+export function isAuthError(error: unknown): boolean {
+  return (error as { data?: { spreeKind?: string | null } } | null)?.data?.spreeKind === 'auth';
+}
+
+export function ApiProvider({
+  session,
+  onAuthError,
+  children,
+}: {
+  session: Session | null;
+  /** Called when a signed-in request is refused: the device was signed out or the key revoked. */
+  onAuthError?: () => void;
+  children: ReactNode;
+}) {
   const sessionRef = useRef(session);
+  const onAuthErrorRef = useRef(onAuthError);
+  useEffect(() => {
+    onAuthErrorRef.current = onAuthError;
+  }, [onAuthError]);
   useEffect(() => {
     sessionRef.current = session;
   }, [session]);
@@ -20,6 +38,13 @@ export function ApiProvider({ session, children }: { session: Session | null; ch
   const [queryClient] = useState(
     () =>
       new QueryClient({
+        // Only signed-in requests can fail with `auth`; sign-in mistakes surface as their own errors.
+        queryCache: new QueryCache({
+          onError: (e) => isAuthError(e) && sessionRef.current && onAuthErrorRef.current?.(),
+        }),
+        mutationCache: new MutationCache({
+          onError: (e) => isAuthError(e) && sessionRef.current && onAuthErrorRef.current?.(),
+        }),
         defaultOptions: {
           queries: {
             staleTime: 30_000,
@@ -31,7 +56,7 @@ export function ApiProvider({ session, children }: { session: Session | null; ch
   const [trpcClient] = useState(() =>
     createTRPCClient<AppRouter>({
       links: [
-        unstable_localLink({
+        localLink({
           router: appRouter,
           createContext: async () => ({ session: sessionRef.current }),
         }),
@@ -39,11 +64,16 @@ export function ApiProvider({ session, children }: { session: Session | null; ch
     }),
   );
 
-  // Different store, different data: drop the cache when the store changes.
+  // Different store, different data: drop the cache when the store changes. Never on mount:
+  // child effects run first, so clearing here would orphan the queries screens just started.
   const storeUrl = session?.probe.baseUrl ?? null;
-  // biome-ignore lint/correctness/useExhaustiveDependencies: storeUrl is the trigger, not an input.
+  const lastStoreUrl = useRef(storeUrl);
   useEffect(() => {
-    queryClient.clear();
+    if (lastStoreUrl.current === storeUrl) return;
+    lastStoreUrl.current = storeUrl;
+    // reset, not clear: wipe the old store's data and refetch what's on screen without
+    // detaching mounted observers.
+    void queryClient.resetQueries();
   }, [storeUrl, queryClient]);
 
   // Drop queries (and their GC timers) when the provider goes away.

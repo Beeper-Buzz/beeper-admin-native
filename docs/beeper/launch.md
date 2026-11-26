@@ -7,26 +7,31 @@ secrets and Apple decisions only the Beeper team can make.
 
 Beeper Admin talks to `admin.beeper.buzz` (Beeper-Buzz/Beeper-Admin, a fork of dna-admin).
 
-1. Merge the dna-admin PR that adds the `spree_admin_native` gem, then merge dna-admin `master`
-   into Beeper-Admin. **you** (or ask me to open the Beeper-Admin PR once that repo is added
-   to this session).
+1. Merge the Beeper-Admin PR that adds the `spree_admin_native` gem (it came from dna-admin #154).
+   **you**
 1. Deploy, run `bin/rails db:migrate`, open **/admin/admin_native_devices** and pair a phone.
 1. Without the gem the app still works on 4.2, but sign-in is "paste your API key" only, and there
    are no notifications or sales summary.
 
 ## 1. Distribution values
 
-`distributions/beeper/distribution.json` already has the name, scheme, owner `instincts` and
-version `1.0.0`. Confirm or change:
+`distributions/beeper/distribution.json` has the name, scheme, version `1.0.0`, the confirmed
+bundle ID and the slug of the EAS project `instincts/beeper-admin-native`. Still to fill in:
 
 | Field | Now | Needed from **you** |
 | --- | --- | --- |
-| `ios.bundleIdentifier` / `android.package` | `com.beeper.admin` | Confirm (follows BeeperNative's `com.beeper.Buzz`) |
-| `eas.projectId` | missing | Run `APP_DISTRIBUTION=beeper npx eas-cli init` in `apps/mobile` under the `instincts` account; it creates the "beeper-admin" project. Commit the ID |
+| `ios.bundleIdentifier` / `android.package` | `com.beeper.admin` | Confirmed |
+| `eas.projectId` | missing | The project ID from expo.dev → beeper-admin-native → Project settings (a UUID, not a secret). `eas init` can't write it into a dynamic `app.config.ts`, so it goes in `distribution.json` |
 | `ios.appleTeamId` | missing | Beeper's Apple team ID (same team as BeeperNative) |
 | `assets.icon`, `assets.splash`, `assets.adaptiveIconForeground` | missing (placeholder art) | A 1024×1024 icon distinct from the consumer app, splash mark, Android foreground |
 
-Also set `APP_DISTRIBUTION=beeper` as an environment variable in the EAS project (all environments).
+Also set `APP_DISTRIBUTION=beeper` as an environment variable in the EAS project (all
+environments, plain text). Builds started from expo.dev or GitHub need it to pick the Beeper
+distribution.
+
+The EAS project is linked to this GitHub repo. Because the app lives in a monorepo, set the
+project's **Base directory** to `apps/mobile` in expo.dev → Project settings → GitHub before
+starting builds from GitHub.
 
 ## 2. Apple
 
@@ -89,4 +94,4 @@ On a TestFlight build against production:
 1. Pair by QR from **/admin/admin_native_devices**.
 1. Place a test order on beeper.buzz: a "New order" notification arrives; tapping it opens the order.
 1. Home shows today's sales; Orders filters and order detail load.
-1. Sign the device out in Spree admin: the app's next request shows "Your session has ended. Sign in again." (an automatic return to sign-in is still to do).
+1. Sign the device out in Spree admin: the app's next request returns it to sign-in.

@@ -1,6 +1,6 @@
-import { Order } from '@spree-native/domain';
-import { type SpreeAdapter, SpreeError, type StoreProbe } from '@spree-native/spree-sdk';
-import { createTRPCClient, unstable_localLink } from '@trpc/client';
+import { Order } from '@instincts/spree-domain';
+import { type SpreeAdapter, SpreeError, type StoreProbe } from '@instincts/spree-sdk';
+import { createTRPCClient, localLink } from '@trpc/client';
 import { TRPCError } from '@trpc/server';
 import { describe, expect, it, vi } from 'vitest';
 import fixture from '../../domain/test/fixtures/order.json';
@@ -91,14 +91,14 @@ describe('appRouter', () => {
     expect(res.baseUrl).toBe('https://shop.test');
   });
 
-  it('runs in-process through unstable_localLink, with spreeKind in error data', async () => {
+  it('runs in-process through localLink, with spreeKind in error data', async () => {
     const a = adapter({
       list: async () => {
         throw new SpreeError({ kind: 'auth', status: 401 });
       },
     });
     const client = createTRPCClient<AppRouter>({
-      links: [unstable_localLink({ router: appRouter, createContext: async () => ctx(['orders.read'], a) })],
+      links: [localLink({ router: appRouter, createContext: async () => ctx(['orders.read'], a) })],
     });
     expect((await client.orders.get.query({ id: 'R482913057' })).number).toBe('R482913057');
     const err = await client.orders.list.query({}).catch((e: unknown) => e);

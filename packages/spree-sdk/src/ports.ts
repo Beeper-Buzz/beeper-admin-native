@@ -1,4 +1,4 @@
-import type { Order, OrderListFilter, Page } from '@spree-native/domain';
+import type { Order, OrderListFilter, Page } from '@instincts/spree-domain';
 import type { ApiFamily } from './capabilities/types';
 import type { CompanionPort } from './companion';
 
