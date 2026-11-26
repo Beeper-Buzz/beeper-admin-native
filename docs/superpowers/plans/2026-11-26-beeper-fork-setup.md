@@ -24,8 +24,8 @@ with orders, push and the Moderation extension working.
 - [ ] `APP_DISTRIBUTION=beeper` dev build boots locked to staging store.
 
 ## Task 4: Moderation API in dna-admin (TDD, request specs first)
-- [ ] `GET /api/v2/platform/beeper/content_reports?filter[status]=open`
-- [ ] `POST …/content_reports/:id/{dismiss,hide_profile,remove_photo,clear_bio,lock_account}`
+- [ ] `GET /api/v1/beeper/content_reports?q[status_eq]=open` (API v1 auth; Spree 4.2 has no Platform API)
+- [ ] `PUT /api/v1/beeper/content_reports/:id/{dismiss,hide_profile,remove_photo,clear_bio,lock_account}`
 - [ ] Reuse logic from `Spree::Admin::ContentReportsController`; extract to a service first
       so HTML and API share it.
 - [ ] Push "New report" on `ContentReport` create.

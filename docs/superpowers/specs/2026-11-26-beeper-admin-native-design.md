@@ -36,6 +36,7 @@ the first real Spree 4.2 store the app runs against every day.
 | EAS project | New project under the Beeper Expo account |
 | Default store | `https://admin.beeper.buzz` |
 | `lockToStore` | `true` |
+| Sign-in | Admin API key (`X-Spree-Token`) until the companion gem adds QR pairing; dna-admin is Spree 4.2.5, the `api-v1` family |
 | Marketplace | Off (built-in and Beeper extensions only) |
 | Telemetry | Sentry on (Beeper DSN), matching BeeperNative |
 
@@ -86,9 +87,9 @@ Most of the above are HTML admin controllers today. The app needs JSON:
 
 1. Add `spree_admin_native` (upstream gem) to `dna-admin`'s Gemfile: capabilities, device
    registration, push on order complete, pairing, summary.
-2. Add `Spree::Api::V2::Platform::Beeper::*` controllers (Doorkeeper `admin` scope, same
-   auth as the Platform API) for moderation, threads/messages, IAP transactions/products/
-   entitlements, live streams, homepage sections, app feedback. Reuse existing services
+2. Add `Spree::Api::V1::Beeper::*` controllers on `Spree::Api::BaseController` (API v1 auth:
+   the admin's `X-Spree-Token`). Spree 4.2 has no Platform API, so Platform controllers are not
+   an option (upstream `infra/spree/FINDINGS.md`). Reuse existing services
    (`EntitlementResolver`, `Iap`, `AccountDeletion`, `Profiles`).
 3. Publish them as capabilities from the gem's capabilities endpoint
    (`beeper.moderation`, `beeper.iap`, `beeper.live`, …) so extensions gate cleanly.
