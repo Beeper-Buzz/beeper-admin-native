@@ -1,16 +1,18 @@
 {
-  "$comment": "Bundle ID com.beeper.admin is confirmed. The slug matches the EAS project instincts/beeper-admin-native; eas.projectId is its ID from expo.dev (docs/beeper/launch.md).",
+  "$comment": "Bundle ID com.beeper.admin is confirmed. EAS project @instincts/beeper-admin-native; Apple team Material Instinct, LLC (same team as BeeperNative).",
   "name": "Beeper Admin",
   "slug": "beeper-admin-native",
   "scheme": "beeperadmin",
   "version": "1.0.0",
   "ios": {
-    "bundleIdentifier": "com.beeper.admin"
+    "bundleIdentifier": "com.beeper.admin",
+    "appleTeamId": "5E3H5S4R65"
   },
   "android": {
     "package": "com.beeper.admin"
   },
   "eas": {
+    "projectId": "30581af3-b84c-48ad-894f-dfa08301b755",
     "owner": "instincts"
   },
   "defaultStoreUrl": "https://admin.beeper.buzz",

@@ -16,13 +16,12 @@ Beeper Admin talks to `admin.beeper.buzz` (Beeper-Buzz/Beeper-Admin, a fork of d
 ## 1. Distribution values
 
 `distributions/beeper/distribution.json` has the name, scheme, version `1.0.0`, the confirmed
-bundle ID and the slug of the EAS project `instincts/beeper-admin-native`. Still to fill in:
+bundle ID, the EAS project `@instincts/beeper-admin-native` (`30581af3-…`, linked to this
+GitHub repo) and Apple team `5E3H5S4R65` (Material Instinct, LLC, the same team as BeeperNative).
+Still to fill in:
 
 | Field | Now | Needed from **you** |
 | --- | --- | --- |
-| `ios.bundleIdentifier` / `android.package` | `com.beeper.admin` | Confirmed |
-| `eas.projectId` | missing | The project ID from expo.dev → beeper-admin-native → Project settings (a UUID, not a secret). `eas init` can't write it into a dynamic `app.config.ts`, so it goes in `distribution.json` |
-| `ios.appleTeamId` | missing | Beeper's Apple team ID (same team as BeeperNative) |
 | `assets.icon`, `assets.splash`, `assets.adaptiveIconForeground` | missing (placeholder art) | A 1024×1024 icon distinct from the consumer app, splash mark, Android foreground |
 
 Also set `APP_DISTRIBUTION=beeper` as an environment variable in the EAS project (all
