@@ -79,7 +79,7 @@ module SpreeAdminNative
         return value if value.nil?
 
         case field.type.to_sym
-        when :integer then blank?(value) ? nil : Integer(value.is_a?(String) ? value.strip : value, 10)
+        when :integer then blank?(value) ? nil : cast_integer(value)
         when :decimal then blank?(value) ? nil : BigDecimal(value.to_s.strip)
         when :boolean then blank?(value) ? nil : ActiveModel::Type::Boolean.new.cast(value)
         when :date then blank?(value) ? nil : Date.iso8601(value.to_s.strip)
@@ -91,6 +91,14 @@ module SpreeAdminNative
         when :string, :text, :url, :email, :color, :enum then value.is_a?(String) ? value : value.to_s
         else value
         end
+      end
+
+      # JSON clients send numbers, forms send strings; a fractional number is not an integer.
+      def cast_integer(value)
+        return value if value.is_a?(Integer)
+        return value.to_i if value.is_a?(Numeric) && value == value.to_i
+
+        Integer(value.to_s.strip, 10)
       end
 
       def blank?(value)

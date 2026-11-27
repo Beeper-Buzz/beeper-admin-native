@@ -770,7 +770,7 @@ class SpreeAdminNativeIntegrationTest < Minitest::Test
     with_types_05 do
       header 'X-Spree-Token', pair!
       body = resource_json(:get, '')
-      assert_equal '0.5.0', body.dig('meta', 'gem_version')
+      assert_equal SpreeAdminNative::VERSION, body.dig('meta', 'gem_version')
       reasons = body['data'].find { |d| d['key'] == 't5_reasons' }
       assert_equal 'Return reason', reasons['singular']
       assert_equal false, reasons['hidden']
@@ -899,6 +899,14 @@ class SpreeAdminNativeIntegrationTest < Minitest::Test
       resource_json(:post, "/t5_reasons/#{reason.id}/actions/note", input: { note: 'x', count: 'many' })
       assert_equal 422, last_response.status
       assert json.dig('error', 'fields', 'count')
+
+      # JSON clients (the app) send numbers, not strings.
+      resource_json(:post, "/t5_reasons/#{reason.id}/actions/note", input: { note: 'x', count: 7, amount: 2.5 })
+      assert_equal 200, last_response.status, last_response.body
+      assert_equal 7, SEEN.last.last[:count]
+      assert_equal BigDecimal('2.5'), SEEN.last.last[:amount]
+      resource_json(:post, "/t5_reasons/#{reason.id}/actions/note", input: { note: 'x', count: 7.5 })
+      assert_equal 422, last_response.status, 'a fractional number is not an integer'
 
       body = resource_json(:post, "/t5_reasons/#{reason.id}/actions/legacy")
       assert_equal 200, last_response.status, last_response.body
