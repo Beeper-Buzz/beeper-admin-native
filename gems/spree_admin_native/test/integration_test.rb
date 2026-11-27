@@ -535,4 +535,142 @@ class SpreeAdminNativeIntegrationTest < Minitest::Test
     assert_equal 401, last_response.status
     assert Spree::Order.exists?(order.id)
   end
+
+  # --- 0.4: host-described admin types ----------------------------------------------------
+
+  def with_resources
+    registry = SpreeAdminNative.resources
+    registry.register('t_refund_reasons') do |r|
+      r.model 'Spree::RefundReason'
+      r.label 'Refund reasons'
+      r.group 'Payments'
+      r.title :name
+      r.search :name
+      r.filter :active
+      r.fields :auto
+      r.action :retire, label: 'Retire', confirm: 'Stop offering this reason?', if: ->(reason) { reason.active } do |reason, _admin|
+        reason.update!(active: false)
+        'Retired.'
+      end
+    end
+    registry.register('t_countries') do |r|
+      r.model 'Spree::Country'
+      r.title :name
+      r.fields :auto
+      r.actions create: false, update: false, destroy: false
+    end
+    registry.register('t_states') do |r|
+      r.model 'Spree::State'
+      r.fields :auto
+      r.field :country_id, :reference, resource: 't_countries', label: 'Country'
+    end
+    registry.register('t_users') do |r|
+      r.model Spree.user_class.name
+      r.fields :auto
+    end
+    registry.register('t_missing') { |r| r.model 'NoSuchModelAnywhere' }
+    yield
+  ensure
+    %w[t_refund_reasons t_countries t_states t_users t_missing].each { |k| registry.unregister(k) }
+  end
+
+  def resource_json(method, path, body = nil)
+    send(method, "/api/admin_native/v1/resources#{path}", body&.to_json, 'CONTENT_TYPE' => 'application/json')
+    last_response.body.empty? ? {} : json
+  end
+
+  def test_manifest_lists_available_types_only_and_hides_secrets
+    with_resources do
+      header 'X-Spree-Token', pair!
+      get '/api/admin_native/v1/capabilities'
+      assert_includes json['capabilities'], 'admin.resources'
+      data = resource_json(:get, '')['data']
+      keys = data.map { |d| d['key'] }
+      assert_includes keys, 't_refund_reasons'
+      refute_includes keys, 't_missing'
+      reasons = data.find { |d| d['key'] == 't_refund_reasons' }
+      assert_equal 'Payments', reasons['group']
+      assert_equal 'name', reasons['title_field']
+      assert_equal [{ 'name' => 'retire', 'label' => 'Retire', 'confirm' => 'Stop offering this reason?', 'destructive' => false }], reasons['actions']
+      assert_includes reasons['fields'].map { |f| f['name'] }, 'active'
+      assert_equal 'boolean', reasons['fields'].find { |f| f['name'] == 'active' }['type']
+      user_fields = data.find { |d| d['key'] == 't_users' }['fields'].map { |f| f['name'] }
+      assert_includes user_fields, 'email'
+      %w[encrypted_password password_salt spree_api_key reset_password_token].each { |secret| refute_includes user_fields, secret }
+    end
+  end
+
+  def test_resources_need_an_admin
+    with_resources do
+      get '/api/admin_native/v1/resources'
+      assert_equal 401, last_response.status
+      get '/api/admin_native/v1/resources/t_refund_reasons'
+      assert_equal 401, last_response.status
+    end
+  end
+
+  def test_list_searches_filters_and_pages
+    with_resources do
+      Spree::RefundReason.create!(name: 'Zebra damaged', active: false)
+      Spree::RefundReason.create!(name: 'Zebra lost', active: true)
+      header 'X-Spree-Token', pair!
+      body = resource_json(:get, '/t_refund_reasons?q=zebra&per_page=1')
+      assert_equal 2, body.dig('meta', 'total_count')
+      assert_equal 1, body['data'].size
+      body = resource_json(:get, '/t_refund_reasons?q=ZEBRA&filter[active]=false')
+      assert_equal ['Zebra damaged'], body['data'].map { |r| r['title'] }
+      assert_equal false, body['data'][0]['values']['active']
+    end
+  end
+
+  def test_create_update_validate_and_delete
+    with_resources do
+      header 'X-Spree-Token', pair!
+      created = resource_json(:post, '/t_refund_reasons', values: { name: 'Wrong size', active: true, id: 999_999 })
+      assert_equal 201, last_response.status, last_response.body
+      id = created.dig('data', 'id')
+      refute_equal '999999', id, 'id is never writable'
+      resource_json(:patch, "/t_refund_reasons/#{id}", values: { name: '' })
+      assert_equal 422, last_response.status
+      assert json.dig('error', 'fields', 'name')
+      updated = resource_json(:patch, "/t_refund_reasons/#{id}", values: { name: 'Wrong size (exchange)' })
+      assert_equal 'Wrong size (exchange)', updated.dig('data', 'title')
+      resource_json(:delete, "/t_refund_reasons/#{id}")
+      assert_equal 204, last_response.status
+      refute Spree::RefundReason.exists?(id)
+    end
+  end
+
+  def test_references_show_their_title_and_switched_off_writes_are_refused
+    with_resources do
+      header 'X-Spree-Token', pair!
+      state = Spree::State.joins(:country).first || skip('seed countries and states first')
+      body = resource_json(:get, "/t_states/#{state.id}")
+      assert_equal({ 'id' => state.country_id.to_s, 'title' => state.country.name }, body.dig('data', 'values', 'country_id'))
+      resource_json(:post, '/t_countries', values: { name: 'Atlantis' })
+      assert_equal 403, last_response.status
+      resource_json(:delete, "/t_countries/#{state.country_id}")
+      assert_equal 403, last_response.status
+      resource_json(:get, '/t_missing')
+      assert_equal 404, last_response.status
+    end
+  end
+
+  def test_member_actions_run_only_when_available
+    with_resources do
+      reason = Spree::RefundReason.create!(name: 'Retire me', active: true)
+      header 'X-Spree-Token', pair!
+      body = resource_json(:get, "/t_refund_reasons/#{reason.id}")
+      assert_equal ['retire'], body.dig('data', 'actions')
+      body = resource_json(:post, "/t_refund_reasons/#{reason.id}/actions/retire")
+      assert_equal 200, last_response.status, last_response.body
+      assert_equal 'Retired.', body['message']
+      assert_equal [], body.dig('data', 'actions')
+      refute reason.reload.active
+      resource_json(:post, "/t_refund_reasons/#{reason.id}/actions/retire")
+      assert_equal 422, last_response.status
+      resource_json(:post, "/t_refund_reasons/#{reason.id}/actions/nope")
+      assert_equal 404, last_response.status
+    end
+  end
 end

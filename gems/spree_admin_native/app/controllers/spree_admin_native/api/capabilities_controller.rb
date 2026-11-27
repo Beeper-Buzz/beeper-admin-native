@@ -24,6 +24,8 @@ module SpreeAdminNative
         list = %w[notifications.push analytics.summary orders.refund orders.create inventory.lowStock media.library]
         # Coupon codes live on the promotion until Spree 5 moved them to their own table.
         list += %w[promotions.read promotions.write] if Spree::Promotion.column_names.include?('code')
+        # Host-described admin types (menus, push notifications…); the app reads GET resources.
+        list << 'admin.resources' if SpreeAdminNative.resources.any?
         list + SpreeAdminNative.config.extra_capabilities
       end
 

@@ -4,10 +4,11 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { useTheme } from '@/theme/theme';
 import { Text } from './text';
 
-/** A tappable list row: optional leading element, title, subtitle, trailing element. */
+/** A tappable list row: optional leading element, title, subtitle, a detail line, trailing element. */
 export function ListRow({
   title,
   subtitle,
+  detail,
   leading,
   trailing,
   first,
@@ -15,6 +16,8 @@ export function ListRow({
 }: {
   title: string;
   subtitle?: string | null;
+  /** A third, smaller line (e.g. a few labelled values). */
+  detail?: string | null;
   leading?: ReactNode;
   trailing?: ReactNode;
   first?: boolean;
@@ -43,6 +46,11 @@ export function ListRow({
         {subtitle ? (
           <Text size="footnote" tone="muted" numberOfLines={1}>
             {subtitle}
+          </Text>
+        ) : null}
+        {detail ? (
+          <Text size="caption" tone="muted" numberOfLines={2}>
+            {detail}
           </Text>
         ) : null}
       </View>

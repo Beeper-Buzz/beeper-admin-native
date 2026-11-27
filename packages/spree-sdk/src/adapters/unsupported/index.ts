@@ -1,5 +1,12 @@
 import { unsupported } from '../../errors';
-import type { CustomersPort, MediaPort, OrdersPort, ProductsPort, PromotionsPort } from '../../ports';
+import type {
+  CustomersPort,
+  MediaPort,
+  OrdersPort,
+  ProductsPort,
+  PromotionsPort,
+  ResourcesPort,
+} from '../../ports';
 
 const refuse = (capability: string) => async (): Promise<never> => {
   throw unsupported(capability);
@@ -33,6 +40,17 @@ export const unsupportedMedia: MediaPort = {
   move: refuse('products.media'),
   remove: refuse('products.media'),
   library: refuse('media.library'),
+};
+
+/** Host-described admin types need the companion gem 0.4+ (`admin.resources`). */
+export const unsupportedResources: ResourcesPort = {
+  manifest: refuse('admin.resources'),
+  list: refuse('admin.resources'),
+  get: refuse('admin.resources'),
+  create: refuse('admin.resources'),
+  update: refuse('admin.resources'),
+  remove: refuse('admin.resources'),
+  perform: refuse('admin.resources'),
 };
 
 /** Order creation for a family the contract suite hasn't proven (`orders.create`). */

@@ -1,5 +1,8 @@
 import type {
   Address,
+  AdminActionResult,
+  AdminRecord,
+  AdminResource,
   Customer,
   Fulfillment,
   LibraryImage,
@@ -244,6 +247,44 @@ export interface PromotionsPort {
   update(promotion: Pick<Promotion, 'id'>, patch: PromotionUpdate): Promise<Promotion>;
 }
 
+// --- Host-described admin types -----------------------------------------------------------
+
+/** A filter value as the manifest's options give it; null or empty clears the filter. */
+export type AdminFilterValue = string | number | boolean | null;
+
+export interface ListAdminRecordsParams {
+  /** Free text; the store searches the type's search columns (only when `searchable`). */
+  query?: string;
+  /** By filter name from the manifest. */
+  filters?: Record<string, AdminFilterValue>;
+  cursor?: string | null;
+  perPage?: number;
+}
+
+/**
+ * Values to write, by field name, in the store's shapes: strings, numbers, booleans, ISO dates,
+ * decimal strings, JSON text, a reference's id. The store validates them; invalid ones come back
+ * as an `invalid` SpreeError with `fieldErrors`.
+ */
+export type AdminValues = Record<string, unknown>;
+
+/**
+ * `admin.resources`: the admin types a host registers with the companion gem (0.4+) and generic
+ * reads and writes over them. Stores without the gem throw a `capability` SpreeError.
+ */
+export interface ResourcesPort {
+  /** The available types, in the host's order. Entries the app can't read are left out. */
+  manifest(): Promise<AdminResource[]>;
+  list(key: string, params: ListAdminRecordsParams): Promise<Page<AdminRecord>>;
+  get(key: string, id: string): Promise<AdminRecord>;
+  create(key: string, values: AdminValues): Promise<AdminRecord>;
+  /** Send only the changed fields. */
+  update(key: string, id: string, values: AdminValues): Promise<AdminRecord>;
+  remove(key: string, id: string): Promise<void>;
+  /** Runs a member action listed in the record's `actions`. */
+  perform(key: string, id: string, action: string): Promise<AdminActionResult>;
+}
+
 /** One Spree API family behind domain-typed ports. Screens and the router only see this. */
 export interface SpreeAdapter {
   readonly family: ApiFamily;
@@ -252,6 +293,7 @@ export interface SpreeAdapter {
   readonly customers: CustomersPort;
   readonly promotions: PromotionsPort;
   readonly media: MediaPort;
+  readonly resources: ResourcesPort;
   /** Present when the store runs the spree_admin_native gem. */
   readonly companion?: CompanionPort;
 }

@@ -3,6 +3,7 @@ require 'spree_admin_native/version'
 require 'spree_admin_native/configuration'
 require 'spree_admin_native/tokens'
 require 'spree_admin_native/engine'
+require 'spree_admin_native/resources'
 
 module SpreeAdminNative
   class << self

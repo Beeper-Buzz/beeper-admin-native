@@ -120,6 +120,55 @@ app that doesn't permit it a promotion's discount saves but can't be read, in Sp
 The gem adds `BigDecimal` to the app's permitted classes; set `permit_bigdecimal_yaml = false` if
 you manage `yaml_column_permitted_classes` yourself.
 
+## Admin types (host-described)
+
+Apps built on Spree usually add their own admin data: menus, homepage sections, push
+notifications, live streams, firmware… Describe them once and the mobile app shows generic list,
+detail and edit screens for each, grouped under More, with no app release:
+
+```ruby
+# config/initializers/spree_admin_native_resources.rb
+SpreeAdminNative.resources.register 'push_notifications' do |r|
+  r.model 'PushNotification'          # left out when the class or table doesn't exist
+  r.label 'Push notifications'
+  r.group 'Engagement'                # More section
+  r.icon 'bell'                       # SF Symbol name
+  r.title :title
+  r.subtitle :status
+  r.list :title, :status, :sent_count
+  r.search :title, :body
+  r.filter :status, %w[draft sent failed]
+  r.order :created_at, :desc
+  r.fields :auto, readonly: %i[sent_count error_count errors_log]   # from the table's columns
+  r.field :status, :enum, options: %w[draft sent failed], readonly: true
+  r.field :target_user_id, :reference, resource: 'users'
+  r.actions destroy: false            # create / update / destroy switches
+  r.action :deliver, label: 'Send now', confirm: 'Send to every subscriber?',
+                     if: ->(n) { n.status == 'draft' } do |notification, admin|
+    PushNotifications::Deliver.call(notification, sent_by: admin)
+    'Sending.'
+  end
+end
+```
+
+1. **Fields** come from the table with `fields :auto` (strings, text, numbers, booleans, dates,
+   JSON, Rails enums), then `field` overrides or adds (`:reference`, `:image`, `:url`, `:color`,
+   `:enum`…). Columns that look secret (password, token, secret, digest, encrypted, api_key, salt,
+   otp, credentials) are never read or written, whatever the registration says. `id` and
+   timestamps are read-only.
+1. **Writes** accept only declared, non-read-only fields, through the model's own validations.
+1. **Actions** run the block with the record and the signed-in admin; a returned string is shown.
+1. The capabilities endpoint announces `admin.resources` when any type is available.
+
+| Endpoint                                                                                                 | What                                    |
+| -------------------------------------------------------------------------------------------------------- | --------------------------------------- |
+| `GET resources`                                                                                          | Manifest of available types             |
+| `GET resources/:key`                                                                                     | `q`, `filter[name]`, `page`, `per_page` |
+| `GET resources/:key/:id`, `POST resources/:key`, `PATCH resources/:key/:id`, `DELETE resources/:key/:id` | `{values: {…}}`                         |
+| `POST resources/:key/:id/actions/:action`                                                                | Runs a declared action                  |
+
+All admin-only.
+
 ## Security
 
 - Pairing codes and device tokens are stored only as SHA-256 digests.

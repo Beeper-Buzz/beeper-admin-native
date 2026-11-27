@@ -7,6 +7,7 @@ import {
   unsupportedMedia,
   unsupportedProducts,
   unsupportedPromotions,
+  unsupportedResources,
 } from '@instincts/spree-sdk';
 import { createTRPCClient, localLink } from '@trpc/client';
 import { TRPCError } from '@trpc/server';
@@ -56,6 +57,7 @@ function adapter(
     customers: unsupportedCustomers,
     promotions: { ...unsupportedPromotions, ...promotions },
     media: unsupportedMedia,
+    resources: unsupportedResources,
   };
 }
 
@@ -758,6 +760,107 @@ describe('order creation', () => {
     await expect(can(a).orders.place({ order: ref, payment: null })).rejects.toMatchObject({
       code: 'BAD_REQUEST',
       message: 'Denim Shirt is out of stock.',
+    });
+  });
+});
+
+describe('resources (host-described admin types)', () => {
+  const reason = {
+    id: '4',
+    title: 'Damaged',
+    subtitle: null,
+    values: { name: 'Damaged' },
+    actions: ['retire'],
+  };
+  function withResources() {
+    const resources = {
+      manifest: vi.fn(async () => []),
+      list: vi.fn(async () => ({ items: [reason], nextCursor: null, totalCount: 1 })),
+      get: vi.fn(async () => reason),
+      create: vi.fn(async () => reason),
+      update: vi.fn(async () => reason),
+      remove: vi.fn(async () => undefined),
+      perform: vi.fn(async () => ({ record: reason, message: 'Retired.' })),
+    };
+    return { a: { ...adapter(), resources } as SpreeAdapter, resources };
+  }
+
+  it('needs admin.resources, explained in plain words', async () => {
+    const { a, resources } = withResources();
+    const caller = createCaller(ctx(['orders.read'], a));
+    await expect(caller.resources.manifest()).rejects.toMatchObject({
+      code: 'PRECONDITION_FAILED',
+      message: expect.stringMatching(/admin types/),
+    });
+    await expect(caller.resources.create({ key: 'menus', values: {} })).rejects.toMatchObject({
+      code: 'PRECONDITION_FAILED',
+    });
+    expect(resources.manifest).not.toHaveBeenCalled();
+    expect(resources.create).not.toHaveBeenCalled();
+  });
+
+  it('lists with trimmed search, set filters and defaults', async () => {
+    const { a, resources } = withResources();
+    const caller = createCaller(ctx(['admin.resources'], a));
+    await caller.resources.list({ key: 'refund_reasons' });
+    expect(resources.list).toHaveBeenCalledWith('refund_reasons', { perPage: 25, cursor: null });
+    await caller.resources.list({
+      key: 'refund_reasons',
+      query: '  zebra ',
+      filters: { active: false, kind: null, status: '' },
+      cursor: '2',
+    });
+    expect(resources.list).toHaveBeenLastCalledWith('refund_reasons', {
+      perPage: 25,
+      cursor: '2',
+      query: 'zebra',
+      filters: { active: false },
+    });
+  });
+
+  it('passes values through and validates keys, ids and action names', async () => {
+    const { a, resources } = withResources();
+    const caller = createCaller(ctx(['admin.resources'], a));
+    const values = { name: 'Wrong size', active: true, position: 3, meta: '{"a":1}', country_id: '12' };
+    await caller.resources.create({ key: 'refund_reasons', values });
+    expect(resources.create).toHaveBeenCalledWith('refund_reasons', values);
+    await caller.resources.update({ key: 'refund_reasons', id: '4', values: { name: 'Damaged box' } });
+    expect(resources.update).toHaveBeenCalledWith('refund_reasons', '4', { name: 'Damaged box' });
+    expect(await caller.resources.perform({ key: 'refund_reasons', id: '4', action: 'retire' })).toEqual({
+      record: reason,
+      message: 'Retired.',
+    });
+    await caller.resources.remove({ key: 'refund_reasons', id: 'zone_12' });
+    expect(resources.remove).toHaveBeenCalledWith('refund_reasons', 'zone_12');
+    for (const bad of [
+      caller.resources.get({ key: '../orders', id: '4' }),
+      caller.resources.get({ key: 'refund_reasons', id: '4/../5' }),
+      caller.resources.perform({ key: 'refund_reasons', id: '4', action: 'a b' }),
+      caller.resources.update({ key: 'refund_reasons', id: '4', values: { 'bad key': 1 } }),
+    ])
+      await expect(bad).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+    expect(resources.get).not.toHaveBeenCalled();
+  });
+
+  it("keeps the store's per-field errors for the form", async () => {
+    const { a, resources } = withResources();
+    resources.update.mockRejectedValueOnce(
+      new SpreeError({
+        kind: 'invalid',
+        status: 422,
+        message: "Name can't be blank",
+        fieldErrors: { name: ["can't be blank"] },
+      }),
+    );
+    const client = createTRPCClient<AppRouter>({
+      links: [localLink({ router: appRouter, createContext: async () => ctx(['admin.resources'], a) })],
+    });
+    const err = await client.resources.update
+      .mutate({ key: 'refund_reasons', id: '4', values: { name: '' } })
+      .catch((e: unknown) => e);
+    expect(err).toMatchObject({
+      message: "Name can't be blank",
+      data: { code: 'BAD_REQUEST', spreeKind: 'invalid', fieldErrors: { name: ["can't be blank"] } },
     });
   });
 });

@@ -1,6 +1,7 @@
 import type { ApiFamily } from '../capabilities/types';
 import { type CompanionPort, companion } from '../companion';
 import { companionPromotions } from '../companion/promotions';
+import { companionResources } from '../companion/resources';
 import type { SpreeAdapter } from '../ports';
 import type { Transport } from '../transport';
 import { adminV3Customers } from './admin-v3/customers';
@@ -18,8 +19,10 @@ import {
   unsupportedMedia,
   unsupportedProducts,
   unsupportedPromotions,
+  unsupportedResources,
 } from './unsupported';
 
+export { companionResources, mapGemRecord, mapGemResource } from '../companion/resources';
 export { mapOrder as mapAdminV3Order } from './admin-v3/mapOrder';
 export {
   mapV3Customer as mapAdminV3Customer,
@@ -36,6 +39,7 @@ export {
   unsupportedOrderCreation,
   unsupportedProducts,
   unsupportedPromotions,
+  unsupportedResources,
 } from './unsupported';
 
 /** The adapter for a store's preferred API family. `transport` must already carry auth. */
@@ -58,11 +62,14 @@ const pending = {
 };
 
 function baseAdapter(family: ApiFamily, transport: Transport, gem?: CompanionPort): SpreeAdapter {
+  // Host-described admin types come only from the gem, whatever the family.
+  const resources = gem ? companionResources(transport) : unsupportedResources;
   switch (family) {
     case 'api-v1':
       return {
         family,
         ...pending,
+        resources,
         orders: apiV1Orders(transport, gem),
         promotions: gem ? companionPromotions(transport) : unsupportedPromotions,
         products: apiV1Products(transport, gem),
@@ -70,11 +77,12 @@ function baseAdapter(family: ApiFamily, transport: Transport, gem?: CompanionPor
         media: apiV1Media(transport, { companion: !!gem }),
       };
     case 'platform-v2':
-      return { family, orders: platformV2Orders(transport), ...pending };
+      return { family, orders: platformV2Orders(transport), ...pending, resources };
     case 'admin-v3':
       return {
         family,
         ...pending,
+        resources,
         orders: adminV3Orders(transport),
         promotions: adminV3Promotions(transport),
         products: adminV3Products(transport),

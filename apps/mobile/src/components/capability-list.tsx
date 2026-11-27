@@ -32,6 +32,7 @@ const GROUPS: { title: string; items: [capability: string, label: string][] }[] 
       ['promotions.read', 'Promotions'],
       ['analytics.summary', 'Sales summary'],
       ['notifications.push', 'Push notifications'],
+      ['admin.resources', 'Store admin types'],
     ],
   },
 ];

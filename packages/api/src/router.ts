@@ -4,6 +4,7 @@ import { mediaRouter } from './routers/media';
 import { ordersRouter } from './routers/orders';
 import { productsRouter } from './routers/products';
 import { promotionsRouter } from './routers/promotions';
+import { resourcesRouter } from './routers/resources';
 import { storeRouter } from './routers/store';
 import { createCallerFactory, router } from './trpc';
 
@@ -16,6 +17,7 @@ export const appRouter = router({
   customers: customersRouter,
   dashboard: dashboardRouter,
   devices: devicesRouter,
+  resources: resourcesRouter,
 });
 
 export type AppRouter = typeof appRouter;

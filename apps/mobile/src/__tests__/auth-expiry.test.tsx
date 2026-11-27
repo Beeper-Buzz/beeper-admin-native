@@ -5,6 +5,7 @@ import {
   unsupportedMedia,
   unsupportedProducts,
   unsupportedPromotions,
+  unsupportedResources,
 } from '@instincts/spree-sdk';
 import { useQuery } from '@tanstack/react-query';
 import { render, screen, waitFor } from '@testing-library/react-native';
@@ -18,6 +19,7 @@ const unusedAreas = {
   products: unsupportedProducts,
   customers: unsupportedCustomers,
   promotions: unsupportedPromotions,
+  resources: unsupportedResources,
   media: unsupportedMedia,
 };
 const unusedActions = {

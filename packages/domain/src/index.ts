@@ -1,4 +1,5 @@
 export * from './address';
+export * from './admin-resource';
 export * from './catalog';
 export * from './common';
 export * from './customer';

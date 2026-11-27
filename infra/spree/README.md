@@ -47,6 +47,11 @@ docker compose -f infra/spree/docker-compose.yml down -v     # drop data
 `infra/spree/<version>/` is mounted at `/seed` in each container, so changes
 to `seed.rb` apply without a rebuild.
 
+The 4.2 store also mounts `4.2/initializers/admin_native_demo_types.rb` into
+`config/initializers/`: demo admin types (refund reasons with a Retire action, zones, countries,
+states referencing countries) for the app's generic admin screens and
+`packages/spree-sdk/contract/resources.contract.ts`. Restart the container after editing it.
+
 ## Credentials
 
 The same on both stores:

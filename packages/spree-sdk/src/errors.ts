@@ -124,11 +124,14 @@ export function extractErrorMessage(data: unknown): string | undefined {
   return undefined;
 }
 
-/** Field errors from Rails `{ errors: { field: [msg] } }` or JSON:API `errors: [{ detail, source: { pointer } }]`. */
+/**
+ * Field errors from Rails `{ errors: { field: [msg] } }`, JSON:API `errors: [{ detail, source: { pointer } }]`
+ * or the companion gem's `{ error: { code, message, fields: { field: [msg] } } }`.
+ */
 export function parseFieldErrors(body: unknown): Record<string, string[]> {
   const out: Record<string, string[]> = {};
   if (!isObject(body)) return out;
-  const raw = body.errors;
+  const raw = body.errors ?? (isObject(body.error) ? body.error.fields : undefined);
   if (Array.isArray(raw)) {
     for (const item of raw) {
       if (!isObject(item)) continue;

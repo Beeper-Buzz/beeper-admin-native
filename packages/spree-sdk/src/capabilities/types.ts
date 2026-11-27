@@ -48,6 +48,8 @@ export const CORE_CAPABILITIES = [
   'priceLists',
   'giftCards',
   'channels',
+  /** Host-described admin types (companion gem 0.4+). */
+  'admin.resources',
 ] as const;
 export type CoreCapability = (typeof CORE_CAPABILITIES)[number];
 /** A core capability or an extension's namespaced capability (`vendor.feature`). */

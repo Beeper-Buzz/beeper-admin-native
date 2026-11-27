@@ -140,17 +140,23 @@ export function Button({
 export function TextField({
   label,
   error,
+  required,
   style,
   ...rest
-}: TextInputProps & { label: string; error?: string | null }) {
+}: TextInputProps & {
+  label: string;
+  error?: string | null;
+  /** Marks the label with an asterisk and says "required" to screen readers. */
+  required?: boolean;
+}) {
   const { colors, fonts } = useTheme();
   return (
     <View style={{ gap: space[1] }}>
       <Text size="footnote" font="uiMedium" tone="muted">
-        {label}
+        {required ? `${label} *` : label}
       </Text>
       <TextInput
-        accessibilityLabel={label}
+        accessibilityLabel={required ? `${label}, required` : label}
         placeholderTextColor={colors.inkMuted}
         style={[
           styles.input,
