@@ -8,6 +8,7 @@ SpreeAdminNative::Engine.routes.draw do
     delete 'devices/:id', to: 'devices#destroy'
     get 'summary', to: 'summary#show'
     get 'resources', to: 'resources#index'
+    post 'resources/uploads', to: 'resources#upload'
     get 'resources/:key', to: 'resources#list'
     post 'resources/:key', to: 'resources#create'
     get 'resources/:key/:id', to: 'resources#show'

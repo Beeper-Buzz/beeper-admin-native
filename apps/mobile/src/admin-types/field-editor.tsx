@@ -1,16 +1,18 @@
-import type { AdminField, AdminReference, AdminResource } from '@instincts/spree-domain';
+import { type AdminField, type AdminReference, type AdminResource, adminFile } from '@instincts/spree-domain';
 import { radius, space } from '@instincts/spree-ui';
 import { Image } from 'expo-image';
 import { useEffect, useRef } from 'react';
-import { Pressable, StyleSheet, Switch, View } from 'react-native';
+import { ActivityIndicator, Linking, Pressable, StyleSheet, Switch, View } from 'react-native';
 import { Button, TextField } from '@/components/primitives';
 import { Text } from '@/components/text';
 import { useTheme } from '@/theme/theme';
+import { fileSummary, useAttachmentUpload } from './attachments';
 import { forgetPick, openReferencePicker } from './picker';
 import {
   type Draft,
   displayValue,
   editorKind,
+  isAttachment,
   isHexColor,
   isoFromLocal,
   localDateTime,
@@ -28,13 +30,16 @@ export interface FieldEditorProps {
   error?: string | null;
   /** The manifest, so a reference can open its target type's picker. */
   types: readonly AdminResource[];
+  /** Told while an image or file is being picked and uploaded, so the form can wait for it. */
+  onBusy?: (busy: boolean) => void;
 }
 
 /** One field of a host-described admin type, with the editor its type calls for. */
 export function FieldEditor(props: FieldEditorProps) {
   const { field, editable } = props;
   const kind = editorKind(field);
-  if (kind === 'image') return <ImageField {...props} />;
+  if (kind === 'image') return editable ? <EditableImageField {...props} /> : <ImageField {...props} />;
+  if (kind === 'file') return <FileField {...props} />;
   if (!editable || kind === 'readonly') return <ReadOnlyField {...props} />;
   switch (kind) {
     case 'boolean':
@@ -66,6 +71,19 @@ function ErrorText({ text }: { text: string | null | undefined }) {
     <Text size="footnote" tone="critical" accessibilityLiveRegion="polite">
       {text}
     </Text>
+  ) : null;
+}
+
+/** Errors that belong to no field (`base`), shown above a form. */
+export function GeneralErrors({ messages }: { messages: readonly string[] }) {
+  return messages.length ? (
+    <View style={{ gap: space[1] }} accessibilityLiveRegion="polite">
+      {messages.map((message) => (
+        <Text key={message} size="footnote" tone="critical">
+          {message}
+        </Text>
+      ))}
+    </View>
   ) : null;
 }
 
@@ -109,20 +127,154 @@ function ImageField({ field, value }: FieldEditorProps) {
           source={{ uri: url }}
           accessibilityLabel={field.label}
           contentFit="cover"
-          style={{
-            width: 120,
-            height: 120,
-            borderRadius: radius.card,
-            backgroundColor: colors.surface,
-            borderWidth: StyleSheet.hairlineWidth,
-            borderColor: colors.line,
-          }}
+          style={imageStyle(colors)}
         />
       ) : (
         <Text tone="muted">No image</Text>
       )}
       <Hint text={field.hint} />
     </View>
+  );
+}
+
+const imageStyle = (colors: ReturnType<typeof useTheme>['colors']) => ({
+  width: 120,
+  height: 120,
+  borderRadius: radius.card,
+  backgroundColor: colors.surface,
+  borderWidth: StyleSheet.hairlineWidth,
+  borderColor: colors.line,
+});
+
+/** Reports the upload state of an attachment field to the form. */
+function useReportBusy(busy: boolean, onBusy: FieldEditorProps['onBusy']) {
+  const report = useRef(onBusy);
+  report.current = onBusy;
+  useEffect(() => {
+    report.current?.(busy);
+  }, [busy]);
+  useEffect(() => () => report.current?.(false), []);
+}
+
+/** An image the store will attach: Choose photo uploads one, Remove clears the field. */
+function EditableImageField({ field, draft, onChange, error, onBusy }: FieldEditorProps) {
+  const { colors } = useTheme();
+  const upload = useAttachmentUpload(field.label);
+  useReportBusy(upload.busy, onBusy);
+  const current = isAttachment(draft) ? draft : null;
+  const choose = async () => {
+    const attached = await upload.choose('image');
+    if (attached) onChange(attached);
+  };
+  return (
+    <View style={{ gap: space[1] }}>
+      <FieldLabel field={field} />
+      {current?.url ? (
+        <Image
+          source={{ uri: current.url }}
+          accessibilityLabel={field.label}
+          contentFit="cover"
+          style={imageStyle(colors)}
+        />
+      ) : (
+        <Text tone="muted">No image</Text>
+      )}
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: space[2] }}>
+        <Button
+          size="small"
+          variant="tonal"
+          title="Choose photo"
+          disabled={upload.busy}
+          accessibilityLabel={`Choose a photo for ${field.label}`}
+          onPress={() => void choose()}
+        />
+        {current ? (
+          <Button
+            size="small"
+            variant="destructive"
+            title="Remove"
+            disabled={upload.busy}
+            accessibilityLabel={`Remove ${field.label}`}
+            onPress={() => onChange(null)}
+          />
+        ) : null}
+        {upload.busy ? <ActivityIndicator accessibilityLabel={`Uploading ${field.label}`} /> : null}
+      </View>
+      <ErrorText text={error} />
+      <Hint text={field.hint} />
+    </View>
+  );
+}
+
+/** A file field (gem 0.5): its name and size, Open, and when editable Replace and Remove. */
+function FileField(props: FieldEditorProps) {
+  const { field, draft, value, editable, error } = props;
+  // Editable shows the draft (a new upload, or removed); read-only shows the record's value.
+  const shown = editable ? (isAttachment(draft) ? draft : null) : adminFile(value);
+  return (
+    <View style={{ gap: space[1] }}>
+      <FieldLabel field={field} />
+      {shown ? (
+        <View style={{ gap: space[2] }}>
+          <Text accessibilityLabel={`${field.label}: ${fileSummary(shown)}`} numberOfLines={2}>
+            {fileSummary(shown)}
+          </Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: space[2] }}>
+            {shown.url ? (
+              <Button
+                size="small"
+                variant="tonal"
+                title="Open"
+                accessibilityLabel={`Open ${shown.filename ?? field.label}`}
+                onPress={() => void Linking.openURL(shown.url as string)}
+              />
+            ) : null}
+            {editable ? <FileWriteButtons {...props} hasFile /> : null}
+          </View>
+        </View>
+      ) : (
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: space[2] }}>
+          <Text tone="muted" style={editable ? undefined : { flex: 1 }}>
+            No file
+          </Text>
+          {editable ? <FileWriteButtons {...props} hasFile={false} /> : null}
+        </View>
+      )}
+      <ErrorText text={error} />
+      <Hint text={field.hint} />
+    </View>
+  );
+}
+
+function FileWriteButtons({ field, onChange, onBusy, hasFile }: FieldEditorProps & { hasFile: boolean }) {
+  const upload = useAttachmentUpload(field.label);
+  useReportBusy(upload.busy, onBusy);
+  const choose = async () => {
+    const attached = await upload.choose('file');
+    if (attached) onChange(attached);
+  };
+  return (
+    <>
+      <Button
+        size="small"
+        variant="tonal"
+        title={hasFile ? 'Replace' : 'Choose file'}
+        disabled={upload.busy}
+        accessibilityLabel={`${hasFile ? 'Replace' : 'Choose'} the file for ${field.label}`}
+        onPress={() => void choose()}
+      />
+      {hasFile ? (
+        <Button
+          size="small"
+          variant="destructive"
+          title="Remove"
+          disabled={upload.busy}
+          accessibilityLabel={`Remove ${field.label}`}
+          onPress={() => onChange(null)}
+        />
+      ) : null}
+      {upload.busy ? <ActivityIndicator accessibilityLabel={`Uploading ${field.label}`} /> : null}
+    </>
   );
 }
 

@@ -22,7 +22,21 @@ import {
   unsupportedResources,
 } from './unsupported';
 
-export { companionResources, mapGemRecord, mapGemResource } from '../companion/resources';
+export type {
+  GemAdminAction,
+  GemAdminBlob,
+  GemAdminField,
+  GemAdminFilter,
+  GemAdminRecord,
+  GemAdminResource,
+} from '../companion/resources';
+export {
+  CONFLICT_MESSAGE,
+  companionResources,
+  mapGemBlob,
+  mapGemRecord,
+  mapGemResource,
+} from '../companion/resources';
 export { mapOrder as mapAdminV3Order } from './admin-v3/mapOrder';
 export {
   mapV3Customer as mapAdminV3Customer,

@@ -3,16 +3,33 @@ import {
   type AdminRecord,
   type AdminReference,
   type AdminResource,
+  adminFile,
   adminReference,
   isWritableField,
 } from '@instincts/spree-domain';
 
 /**
- * Form state for host-described admin types. Each field's editor holds a draft (text as typed,
- * a boolean, the chosen option's key or a reference); `payload` turns it into what the store
- * takes, and only changed fields are sent on save.
+ * An image or file field's draft: what is attached now (`signedId` null), or a file just uploaded
+ * (`signedId` set, which is what the store takes to attach it). null means none, or removed.
  */
-export type Draft = string | boolean | AdminReference | null;
+export interface AttachmentDraft {
+  /** Shown as the image, or opened for a file; a local file URI for a fresh photo. */
+  url: string | null;
+  filename: string | null;
+  contentType: string | null;
+  byteSize: number | null;
+  signedId: string | null;
+}
+
+/**
+ * Form state for host-described admin types. Each field's editor holds a draft (text as typed,
+ * a boolean, the chosen option's key, a reference or an attachment); `payload` turns it into what
+ * the store takes, and only changed fields are sent on save.
+ */
+export type Draft = string | boolean | AdminReference | AttachmentDraft | null;
+
+export const isAttachment = (draft: Draft | undefined): draft is AttachmentDraft =>
+  typeof draft === 'object' && draft !== null && 'signedId' in draft;
 export type Drafts = Record<string, Draft>;
 
 /** Which editor a field gets. Types the app doesn't know, and read-only ones, are shown as text. */
@@ -31,6 +48,7 @@ export type EditorKind =
   | 'json'
   | 'reference'
   | 'image'
+  | 'file'
   | 'readonly';
 
 export function editorKind(field: AdminField): EditorKind {
@@ -51,6 +69,7 @@ export function editorKind(field: AdminField): EditorKind {
     case 'json':
     case 'reference':
     case 'image':
+    case 'file':
       return field.type;
     default:
       return 'readonly';
@@ -93,6 +112,12 @@ export function isoFromLocal(text: string): string | null {
   return new Date(y, mo - 1, d, h, mi).toISOString();
 }
 
+/** Whether text is a real day as `YYYY-MM-DD`. */
+export function isDay(text: string): boolean {
+  const m = DATE.exec(text.trim());
+  return !!m && validDay(Number(m[1]), Number(m[2]), Number(m[3]));
+}
+
 export function isHexColor(value: string): boolean {
   return HEX.test(value.trim());
 }
@@ -114,6 +139,14 @@ export function initialDraft(field: AdminField, value: unknown): Draft {
       return typeof value === 'string' ? value.slice(0, 10) : '';
     case 'datetime':
       return typeof value === 'string' ? localDateTime(value) : '';
+    case 'image':
+      return typeof value === 'string' && value
+        ? { url: value, filename: null, contentType: null, byteSize: null, signedId: null }
+        : null;
+    case 'file': {
+      const file = adminFile(value);
+      return file ? { ...file, signedId: null } : null;
+    }
     default:
       return value === null || value === undefined ? '' : typeof value === 'object' ? '' : String(value);
   }
@@ -123,13 +156,23 @@ export function draftsFor(fields: AdminField[], values: Record<string, unknown>)
   return Object.fromEntries(fields.map((f) => [f.name, initialDraft(f, values[f.name])]));
 }
 
+/** Drafts for a new record or an action's inputs: each field's `default` (gem 0.5), else empty. */
+export function defaultDrafts(fields: AdminField[]): Drafts {
+  return draftsFor(fields, Object.fromEntries(fields.map((f) => [f.name, f.default])));
+}
+
 const isEmpty = (draft: Draft) => draft === null || (typeof draft === 'string' && draft.trim() === '');
 
 /** What the store takes for a draft. Call only on a draft that passed `validateDraft`. */
 export function payload(field: AdminField, draft: Draft): unknown {
   const kind = editorKind(field);
   if (kind === 'boolean') return typeof draft === 'boolean' ? draft : null;
-  if (kind === 'reference') return draft && typeof draft === 'object' ? draft.id : null;
+  if (kind === 'image' || kind === 'file') {
+    if (!isAttachment(draft)) return null;
+    // An unchanged attachment compares by its URL and is never sent; a new one is sent by signed id.
+    return draft.signedId ?? draft.url ?? draft.filename;
+  }
+  if (kind === 'reference') return draft && typeof draft === 'object' && 'id' in draft ? draft.id : null;
   if (kind === 'enum') {
     if (typeof draft !== 'string') return null;
     return field.options?.find((o) => String(o.value) === draft)?.value ?? draft;
@@ -164,10 +207,8 @@ export function validateDraft(field: AdminField, draft: Draft): string | null {
       return /^-?\d+$/.test(text) && Number.isSafeInteger(Number(text)) ? null : 'Enter a whole number.';
     case 'decimal':
       return /^-?\d+([.,]\d+)?$/.test(text) ? null : 'Enter a number like 12.50.';
-    case 'date': {
-      const m = DATE.exec(text);
-      return m && validDay(Number(m[1]), Number(m[2]), Number(m[3])) ? null : 'Use YYYY-MM-DD.';
-    }
+    case 'date':
+      return isDay(text) ? null : 'Use YYYY-MM-DD.';
     case 'datetime':
       return isoFromLocal(text) ? null : 'Use YYYY-MM-DD HH:MM.';
     case 'json':
@@ -186,10 +227,28 @@ export function validateDraft(field: AdminField, draft: Draft): string | null {
   }
 }
 
-/** Fields the form can write: declared writable, and allowed for this mode. */
-export function writableFields(type: AdminResource, mode: 'create' | 'update'): AdminField[] {
+/**
+ * Fields the form can write: declared writable, and allowed for this mode and record (`canUpdate`
+ * is the record's gem 0.5 `can.update`; a 0.4 record always allows it).
+ */
+export function writableFields(
+  type: AdminResource,
+  mode: 'create' | 'update',
+  canUpdate = true,
+): AdminField[] {
   if (mode === 'create' ? !type.create : !type.update) return [];
-  return type.fields.filter((f) => isWritableField(f) && editorKind(f) !== 'readonly');
+  if (mode === 'update' && !canUpdate) return [];
+  return editableFields(type.fields);
+}
+
+/** The fields of a list (a type's, or an action's inputs) that have an editor. */
+export function editableFields(fields: AdminField[]): AdminField[] {
+  return fields.filter((f) => isWritableField(f) && editorKind(f) !== 'readonly');
+}
+
+/** Whether the record can be deleted from the app: the type's switch and the record's rule. */
+export function canDestroy(type: AdminResource, record: Pick<AdminRecord, 'can'>): boolean {
+  return type.destroy && record.can.destroy;
 }
 
 export function validateAll(fields: AdminField[], drafts: Drafts): Record<string, string> {
@@ -232,11 +291,21 @@ export function createValues(fields: AdminField[], drafts: Drafts): Record<strin
   const out: Record<string, unknown> = {};
   for (const f of fields) {
     const draft = drafts[f.name] ?? null;
-    if (editorKind(f) === 'boolean') {
+    const kind = editorKind(f);
+    if (kind === 'boolean') {
       if (typeof draft === 'boolean') out[f.name] = draft;
       else if (f.required) out[f.name] = false;
+    } else if (kind === 'image' || kind === 'file') {
+      if (isAttachment(draft) && draft.signedId) out[f.name] = draft.signedId;
     } else if (!isEmpty(draft)) out[f.name] = payload(f, draft);
   }
+  return out;
+}
+
+/** An action's `input`: what was filled in, with every switch sent as on or off. */
+export function inputValues(fields: AdminField[], drafts: Drafts): Record<string, unknown> {
+  const out = createValues(fields, drafts);
+  for (const f of fields) if (editorKind(f) === 'boolean') out[f.name] = drafts[f.name] === true;
   return out;
 }
 
@@ -274,6 +343,7 @@ export function displayValue(field: AdminField | undefined, value: unknown): str
     return option?.label ?? humanize(String(value));
   }
   if (kind === 'reference') return adminReference(value)?.title ?? '—';
+  if (kind === 'file') return adminFile(value)?.filename ?? '—';
   if (kind === 'date' && typeof value === 'string') {
     const m = DATE.exec(value.slice(0, 10));
     if (m)
@@ -310,9 +380,15 @@ export function listDetail(type: AdminResource, record: AdminRecord): string | n
     const field = type.fields.find((f) => f.name === name);
     const value = record.values[name];
     if (value === null || value === undefined || value === '' || field?.type === 'image') continue;
+    if (field?.type === 'file' && !adminFile(value)) continue;
     parts.push(`${field?.label ?? humanize(name)}: ${displayValue(field, value)}`);
   }
   return parts.length ? parts.join(' · ') : null;
+}
+
+/** One of a type, for "New …" titles: the host's `singular` (gem 0.5), else made from the label. */
+export function singularLabel(type: Pick<AdminResource, 'label' | 'singular'>): string {
+  return type.singular ?? singular(type.label);
 }
 
 /** "Refund reasons" → "Refund reason", for "New …" titles. */

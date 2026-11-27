@@ -112,11 +112,14 @@ const damaged: AdminRecord = {
     created_at: '2026-11-01T10:00:00Z',
   },
   actions: ['retire'],
+  // What the SDK fills in for a 0.4 record.
+  can: { update: true, destroy: true },
+  version: null,
 };
 
 function setup(overrides: Record<string, jest.Mock> = {}) {
   const resources = {
-    manifest: jest.fn(async () => [reasons, countries, states]),
+    manifest: jest.fn(async () => ({ types: [reasons, countries, states], meta: { gemVersion: null } })),
     list: jest.fn(async (key: string) => ({
       items:
         key === 'countries'

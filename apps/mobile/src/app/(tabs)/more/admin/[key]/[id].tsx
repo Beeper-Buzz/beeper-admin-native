@@ -36,7 +36,7 @@ export default function AdminRecordScreen() {
   return (
     <Screen>
       <Stack.Screen options={{ title: record.data.title }} />
-      <RecordForm type={types.type} record={record.data} types={types.data ?? []} />
+      <RecordForm type={types.type} record={record.data} types={types.types ?? []} />
     </Screen>
   );
 }

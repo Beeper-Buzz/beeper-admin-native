@@ -1,0 +1,583 @@
+{
+  "$comment": "Companion gem 0.5 payloads as docs/superpowers/specs/2026-11-27-admin-types-0.5.md describes them, for the demo types on the Spree 4.2 test store (infra/spree/4.2/initializers/admin_native_demo_types.rb) plus one built-in lookup.",
+  "manifest": {
+    "data": [
+      {
+        "key": "refund_reasons",
+        "label": "Refund reasons",
+        "singular": "Refund reason",
+        "group": "Payments",
+        "icon": "arrow.uturn.backward",
+        "title_field": "name",
+        "list_fields": ["name", "active"],
+        "searchable": true,
+        "filters": [
+          {
+            "name": "active",
+            "label": "Active",
+            "type": "enum",
+            "options": [true, false]
+          }
+        ],
+        "fields": [
+          {
+            "name": "id",
+            "type": "integer",
+            "label": "Id",
+            "required": false,
+            "readonly": true
+          },
+          {
+            "name": "name",
+            "type": "string",
+            "label": "Name",
+            "required": true,
+            "readonly": false,
+            "hint": "Shown to staff when they refund a payment."
+          },
+          {
+            "name": "active",
+            "type": "boolean",
+            "label": "Active",
+            "required": false,
+            "readonly": false,
+            "default": true
+          },
+          {
+            "name": "mutable",
+            "type": "boolean",
+            "label": "Mutable",
+            "required": false,
+            "readonly": true,
+            "default": true
+          },
+          {
+            "name": "code",
+            "type": "string",
+            "label": "Code",
+            "required": false,
+            "readonly": false
+          },
+          {
+            "name": "created_at",
+            "type": "datetime",
+            "label": "Created at",
+            "required": false,
+            "readonly": true
+          }
+        ],
+        "create": true,
+        "update": true,
+        "destroy": true,
+        "actions": [
+          {
+            "name": "retire",
+            "label": "Retire",
+            "confirm": "Stop offering this reason for new refunds?",
+            "destructive": true
+          },
+          {
+            "name": "reinstate",
+            "label": "Offer again",
+            "destructive": false
+          },
+          {
+            "name": "rename",
+            "label": "Rename",
+            "destructive": false,
+            "inputs": [
+              {
+                "name": "new_name",
+                "type": "string",
+                "label": "New name",
+                "required": true,
+                "readonly": false
+              },
+              {
+                "name": "notify",
+                "type": "boolean",
+                "label": "Tell the team",
+                "required": false,
+                "readonly": false,
+                "default": true
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "key": "zones",
+        "label": "Zones",
+        "singular": "Zone",
+        "group": "Shipping",
+        "icon": "globe",
+        "title_field": "name",
+        "subtitle_field": "description",
+        "list_fields": ["name", "kind", "default_tax"],
+        "searchable": true,
+        "filters": [
+          {
+            "name": "kind",
+            "label": "Kind",
+            "type": "enum",
+            "options": ["country", "state"]
+          },
+          {
+            "name": "description",
+            "label": "Description",
+            "type": "presence",
+            "options": ["set", "unset"]
+          },
+          {
+            "name": "created_at",
+            "label": "Created at",
+            "type": "date_range"
+          },
+          {
+            "name": "name",
+            "label": "Name",
+            "type": "enum"
+          }
+        ],
+        "fields": [
+          {
+            "name": "name",
+            "type": "string",
+            "label": "Name",
+            "required": true,
+            "readonly": false
+          },
+          {
+            "name": "description",
+            "type": "string",
+            "label": "Description",
+            "required": false,
+            "readonly": false
+          },
+          {
+            "name": "kind",
+            "type": "enum",
+            "label": "Kind",
+            "required": true,
+            "readonly": false,
+            "options": ["country", "state"],
+            "default": "state"
+          },
+          {
+            "name": "default_tax",
+            "type": "boolean",
+            "label": "Default tax zone",
+            "required": false,
+            "readonly": false,
+            "default": false
+          },
+          {
+            "name": "zone_members_count",
+            "type": "integer",
+            "label": "Zone members count",
+            "required": false,
+            "readonly": true,
+            "default": 0
+          },
+          {
+            "name": "created_at",
+            "type": "datetime",
+            "label": "Created at",
+            "required": false,
+            "readonly": true
+          }
+        ],
+        "create": true,
+        "update": true,
+        "destroy": true,
+        "actions": [
+          {
+            "name": "discard",
+            "label": "Discard",
+            "confirm": "Delete this zone and its members?",
+            "destructive": true
+          }
+        ]
+      },
+      {
+        "key": "countries",
+        "label": "Countries",
+        "singular": "Country",
+        "group": "Shipping",
+        "icon": "flag",
+        "title_field": "name",
+        "subtitle_field": "iso",
+        "list_fields": ["iso3", "states_required"],
+        "searchable": true,
+        "filters": [
+          {
+            "name": "states_required",
+            "label": "States required",
+            "type": "enum",
+            "options": [true, false]
+          }
+        ],
+        "fields": [
+          {
+            "name": "name",
+            "type": "string",
+            "label": "Name",
+            "required": false,
+            "readonly": false
+          },
+          {
+            "name": "iso",
+            "type": "string",
+            "label": "Iso",
+            "required": false,
+            "readonly": false
+          },
+          {
+            "name": "iso3",
+            "type": "string",
+            "label": "Iso3",
+            "required": false,
+            "readonly": false
+          },
+          {
+            "name": "states_required",
+            "type": "boolean",
+            "label": "States required",
+            "required": false,
+            "readonly": false,
+            "default": false
+          }
+        ],
+        "create": false,
+        "update": false,
+        "destroy": false,
+        "actions": []
+      },
+      {
+        "key": "states",
+        "label": "States",
+        "singular": "State",
+        "group": "Shipping",
+        "icon": "mappin.and.ellipse",
+        "title_field": "name",
+        "subtitle_field": "abbr",
+        "list_fields": ["country_id"],
+        "searchable": true,
+        "filters": [
+          {
+            "name": "country_id",
+            "label": "Country",
+            "type": "reference",
+            "resource": "countries"
+          }
+        ],
+        "fields": [
+          {
+            "name": "name",
+            "type": "string",
+            "label": "Name",
+            "required": true,
+            "readonly": false
+          },
+          {
+            "name": "abbr",
+            "type": "string",
+            "label": "Abbr",
+            "required": false,
+            "readonly": false
+          },
+          {
+            "name": "country_id",
+            "type": "reference",
+            "label": "Country",
+            "required": true,
+            "readonly": false,
+            "resource": "countries"
+          }
+        ],
+        "create": true,
+        "update": true,
+        "destroy": true,
+        "actions": []
+      },
+      {
+        "key": "product_images",
+        "label": "Product images",
+        "singular": "Product image",
+        "group": "Catalog",
+        "title_field": "alt",
+        "list_fields": ["alt", "attachment"],
+        "searchable": true,
+        "filters": [],
+        "fields": [
+          {
+            "name": "alt",
+            "type": "string",
+            "label": "Alt",
+            "required": false,
+            "readonly": false
+          },
+          {
+            "name": "attachment",
+            "type": "image",
+            "label": "Attachment",
+            "required": false,
+            "readonly": false
+          },
+          {
+            "name": "viewable_id",
+            "type": "integer",
+            "label": "Variant id",
+            "required": false,
+            "readonly": true
+          }
+        ],
+        "create": false,
+        "update": true,
+        "destroy": false,
+        "actions": [],
+        "icon": "photo"
+      },
+      {
+        "key": "spree_products",
+        "label": "Products",
+        "singular": "Product",
+        "hidden": true,
+        "group": "Spree",
+        "title_field": "name",
+        "subtitle_field": "slug",
+        "list_fields": [],
+        "searchable": true,
+        "filters": [],
+        "fields": [
+          {
+            "name": "name",
+            "type": "string",
+            "label": "Name",
+            "required": true,
+            "readonly": true
+          },
+          {
+            "name": "slug",
+            "type": "string",
+            "label": "Slug",
+            "required": true,
+            "readonly": true
+          },
+          {
+            "name": "created_at",
+            "type": "datetime",
+            "label": "Created at",
+            "required": false,
+            "readonly": true
+          }
+        ],
+        "create": false,
+        "update": false,
+        "destroy": false,
+        "actions": [],
+        "icon": "bag"
+      },
+      {
+        "key": "spree_variants",
+        "label": "Variants",
+        "singular": "Variant",
+        "hidden": true,
+        "group": "Spree",
+        "icon": "square.stack",
+        "title_field": "sku",
+        "list_fields": [],
+        "searchable": true,
+        "filters": [],
+        "fields": [
+          {
+            "name": "sku",
+            "type": "string",
+            "label": "SKU",
+            "required": false,
+            "readonly": true
+          },
+          {
+            "name": "created_at",
+            "type": "datetime",
+            "label": "Created at",
+            "required": false,
+            "readonly": true
+          }
+        ],
+        "create": false,
+        "update": false,
+        "destroy": false,
+        "actions": []
+      }
+    ],
+    "meta": {
+      "gem_version": "0.5.0"
+    }
+  },
+  "zoneWithMembers": {
+    "data": {
+      "id": "1",
+      "title": "EU_VAT",
+      "subtitle": "Countries that make up the EU VAT zone.",
+      "values": {
+        "name": "EU_VAT",
+        "description": "Countries that make up the EU VAT zone.",
+        "kind": "country",
+        "default_tax": false,
+        "zone_members_count": 27,
+        "created_at": "2026-11-01T10:00:00Z"
+      },
+      "actions": ["discard"],
+      "can": {
+        "update": true,
+        "destroy": false
+      },
+      "version": "2026-11-27T10:00:00.123456Z"
+    }
+  },
+  "renamed": {
+    "data": {
+      "id": "4",
+      "title": "Broken",
+      "subtitle": null,
+      "values": {
+        "id": 4,
+        "name": "Broken",
+        "active": true,
+        "mutable": true,
+        "code": null,
+        "created_at": "2026-11-01T10:00:00Z"
+      },
+      "actions": ["retire", "rename"],
+      "can": {
+        "update": true,
+        "destroy": true
+      },
+      "version": "2026-11-27T10:05:00.000001Z"
+    },
+    "message": "Renamed."
+  },
+  "discarded": {
+    "data": null,
+    "removed": true,
+    "message": "Discarded."
+  },
+  "productImage": {
+    "data": {
+      "id": "31",
+      "title": "Front",
+      "subtitle": null,
+      "values": {
+        "alt": "Front",
+        "attachment": "https://shop.test/rails/active_storage/blobs/redirect/eyJf--1/front.png",
+        "viewable_id": 2
+      },
+      "actions": [],
+      "can": {
+        "update": true,
+        "destroy": false
+      }
+    }
+  },
+  "fileRecord": {
+    "data": {
+      "id": "7",
+      "title": "Terms",
+      "subtitle": null,
+      "values": {
+        "title": "Terms",
+        "document": {
+          "url": "https://shop.test/rails/active_storage/blobs/redirect/eyJf--2/terms.pdf",
+          "filename": "terms.pdf",
+          "content_type": "application/pdf",
+          "byte_size": 48213
+        }
+      },
+      "actions": [],
+      "can": {
+        "update": false,
+        "destroy": false
+      },
+      "version": 3
+    }
+  },
+  "upload": {
+    "data": {
+      "signed_id": "eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaHBCdz09IiwiZXhwIjpudWxsLCJwdXIiOiJibG9iX2lkIn19--6f2b",
+      "filename": "back.png",
+      "content_type": "image/png",
+      "byte_size": 1234,
+      "url": "https://shop.test/rails/active_storage/blobs/redirect/eyJf--3/back.png"
+    }
+  },
+  "conflict": {
+    "error": {
+      "code": "conflict",
+      "message": "Someone else changed this. Reload to see their changes."
+    }
+  },
+  "missingInput": {
+    "error": {
+      "code": "invalid",
+      "message": "New name can't be blank",
+      "fields": {
+        "new_name": ["can't be blank"]
+      }
+    }
+  },
+  "notAllowed": {
+    "error": {
+      "code": "not_allowed",
+      "message": "This zone can't be deleted."
+    }
+  },
+  "altRefused": {
+    "error": {
+      "code": "invalid",
+      "message": "Alt text can't be blank",
+      "fields": {
+        "alt": ["Alt text can't be blank"]
+      }
+    }
+  },
+  "variant": {
+    "data": {
+      "id": "12",
+      "title": "ROR-00012",
+      "subtitle": "Ruby on Rails Tote",
+      "values": {
+        "sku": "ROR-00012"
+      },
+      "actions": [],
+      "can": {
+        "update": false,
+        "destroy": false
+      }
+    }
+  },
+  "tooLarge": {
+    "error": {
+      "code": "too_large",
+      "message": "This file is larger than 25 MB."
+    }
+  },
+  "invalidInput": {
+    "error": {
+      "code": "invalid",
+      "message": "Notify is invalid",
+      "fields": {
+        "notify": ["is invalid"]
+      }
+    }
+  },
+  "invalidSignedId": {
+    "error": {
+      "code": "invalid",
+      "message": "Attachment is not a valid upload",
+      "fields": {
+        "attachment": ["is not a valid upload"]
+      }
+    }
+  }
+}

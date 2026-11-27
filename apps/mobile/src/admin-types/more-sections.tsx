@@ -32,7 +32,7 @@ export function AdminTypeSections() {
     );
   return (
     <>
-      {groupTypes(types.data ?? []).map(({ group, types: list }) => (
+      {groupTypes(types.types ?? []).map(({ group, types: list }) => (
         <View key={group} style={{ gap: space[2] }}>
           <Label accessibilityRole="header">{group}</Label>
           <LinkCard

@@ -1,8 +1,9 @@
 import type {
   Address,
   AdminActionResult,
+  AdminBlob,
+  AdminManifest,
   AdminRecord,
-  AdminResource,
   Customer,
   Fulfillment,
   LibraryImage,
@@ -249,8 +250,17 @@ export interface PromotionsPort {
 
 // --- Host-described admin types -----------------------------------------------------------
 
-/** A filter value as the manifest's options give it; null or empty clears the filter. */
-export type AdminFilterValue = string | number | boolean | null;
+/** A `date_range` filter (gem 0.5): ISO dates (`YYYY-MM-DD`), inclusive; either end may be open. */
+export interface AdminDateRange {
+  from?: string | null;
+  to?: string | null;
+}
+
+/**
+ * A filter value: an option's value (enum), a record id (reference), `'set'` or `'unset'`
+ * (presence) or a date range. null, empty or a range with neither end clears the filter.
+ */
+export type AdminFilterValue = string | number | boolean | null | AdminDateRange;
 
 export interface ListAdminRecordsParams {
   /** Free text; the store searches the type's search columns (only when `searchable`). */
@@ -273,16 +283,35 @@ export type AdminValues = Record<string, unknown>;
  * reads and writes over them. Stores without the gem throw a `capability` SpreeError.
  */
 export interface ResourcesPort {
-  /** The available types, in the host's order. Entries the app can't read are left out. */
-  manifest(): Promise<AdminResource[]>;
+  /**
+   * The available types, in the host's order, hidden ones included (they are reference targets).
+   * Entries the app can't read are left out.
+   */
+  manifest(): Promise<AdminManifest>;
   list(key: string, params: ListAdminRecordsParams): Promise<Page<AdminRecord>>;
   get(key: string, id: string): Promise<AdminRecord>;
   create(key: string, values: AdminValues): Promise<AdminRecord>;
-  /** Send only the changed fields. */
-  update(key: string, id: string, values: AdminValues): Promise<AdminRecord>;
+  /**
+   * Send only the changed fields. With the record's `version` (gem 0.5), the store refuses the
+   * update with a `conflict` SpreeError when someone else saved it in between.
+   */
+  update(
+    key: string,
+    id: string,
+    values: AdminValues,
+    version?: string | number | null,
+  ): Promise<AdminRecord>;
   remove(key: string, id: string): Promise<void>;
-  /** Runs a member action listed in the record's `actions`. */
-  perform(key: string, id: string, action: string): Promise<AdminActionResult>;
+  /**
+   * Runs a member action listed in the record's `actions`, with the values for its `inputs`
+   * (gem 0.5). A missing required input is an `invalid` SpreeError with `fieldErrors`.
+   */
+  perform(key: string, id: string, action: string, input?: AdminValues): Promise<AdminActionResult>;
+  /**
+   * Uploads a file for an image or file field (gem 0.5, 25 MB at most); set the field to the
+   * returned blob's `signedId` to attach it.
+   */
+  upload(file: MediaFile): Promise<AdminBlob>;
 }
 
 /** One Spree API family behind domain-typed ports. Screens and the router only see this. */

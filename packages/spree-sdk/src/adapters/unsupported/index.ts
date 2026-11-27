@@ -51,6 +51,7 @@ export const unsupportedResources: ResourcesPort = {
   update: refuse('admin.resources'),
   remove: refuse('admin.resources'),
   perform: refuse('admin.resources'),
+  upload: refuse('admin.resources'),
 };
 
 /** Order creation for a family the contract suite hasn't proven (`orders.create`). */

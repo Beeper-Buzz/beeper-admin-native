@@ -28,7 +28,8 @@ const sentryPlugin: [string, Record<string, string>][] =
       ]
     : [];
 
-const CAMERA_PERMISSION = 'Scan pairing codes from your store admin and take product photos.';
+const CAMERA_PERMISSION =
+  'Scan pairing codes from your store admin and take photos for your products and store content.';
 
 export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
@@ -69,7 +70,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       'expo-image-picker',
       {
         cameraPermission: CAMERA_PERMISSION,
-        photosPermission: 'Choose photos from your library to add to your products.',
+        photosPermission: 'Choose photos from your library to add to your products and store content.',
         microphonePermission: false,
       },
     ],

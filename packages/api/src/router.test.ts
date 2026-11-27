@@ -771,16 +771,26 @@ describe('resources (host-described admin types)', () => {
     subtitle: null,
     values: { name: 'Damaged' },
     actions: ['retire'],
+    can: { update: true, destroy: true },
+    version: 1,
+  };
+  const blob = {
+    signedId: 'eyJf--1',
+    filename: 'back.png',
+    contentType: 'image/png',
+    byteSize: 12,
+    url: 'https://shop.test/b.png',
   };
   function withResources() {
     const resources = {
-      manifest: vi.fn(async () => []),
+      manifest: vi.fn(async () => ({ types: [], meta: { gemVersion: '0.5.0' } })),
       list: vi.fn(async () => ({ items: [reason], nextCursor: null, totalCount: 1 })),
       get: vi.fn(async () => reason),
       create: vi.fn(async () => reason),
       update: vi.fn(async () => reason),
       remove: vi.fn(async () => undefined),
-      perform: vi.fn(async () => ({ record: reason, message: 'Retired.' })),
+      perform: vi.fn(async () => ({ record: reason, message: 'Retired.', removed: false })),
+      upload: vi.fn(async () => blob),
     };
     return { a: { ...adapter(), resources } as SpreeAdapter, resources };
   }
@@ -829,6 +839,7 @@ describe('resources (host-described admin types)', () => {
     expect(await caller.resources.perform({ key: 'refund_reasons', id: '4', action: 'retire' })).toEqual({
       record: reason,
       message: 'Retired.',
+      removed: false,
     });
     await caller.resources.remove({ key: 'refund_reasons', id: 'zone_12' });
     expect(resources.remove).toHaveBeenCalledWith('refund_reasons', 'zone_12');
@@ -861,6 +872,111 @@ describe('resources (host-described admin types)', () => {
     expect(err).toMatchObject({
       message: "Name can't be blank",
       data: { code: 'BAD_REQUEST', spreeKind: 'invalid', fieldErrors: { name: ["can't be blank"] } },
+    });
+  });
+
+  it('passes date ranges, reference ids and presence through, dropping empty ones', async () => {
+    const { a, resources } = withResources();
+    const caller = createCaller(ctx(['admin.resources'], a));
+    await caller.resources.list({
+      key: 'zones',
+      filters: {
+        description: 'unset',
+        created_at: { from: '2026-11-01', to: '' },
+        updated_at: { from: null, to: null },
+        country_id: '38',
+      },
+    });
+    expect(resources.list).toHaveBeenLastCalledWith('zones', {
+      perPage: 25,
+      cursor: null,
+      filters: { description: 'unset', created_at: { from: '2026-11-01' }, country_id: '38' },
+    });
+    await expect(
+      caller.resources.list({ key: 'zones', filters: { created_at: { from: '1 Nov' } } }),
+    ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+  });
+
+  it('sends a version with an update and input with an action only when there is one', async () => {
+    const { a, resources } = withResources();
+    const caller = createCaller(ctx(['admin.resources'], a));
+    await caller.resources.update({ key: 'zones', id: '1', values: { name: 'EU' }, version: 3 });
+    expect(resources.update).toHaveBeenLastCalledWith('zones', '1', { name: 'EU' }, 3);
+    await caller.resources.update({
+      key: 'zones',
+      id: '1',
+      values: { name: 'EU' },
+      version: '2026-11-27T10:00:00.123456Z',
+    });
+    expect(resources.update).toHaveBeenLastCalledWith(
+      'zones',
+      '1',
+      { name: 'EU' },
+      '2026-11-27T10:00:00.123456Z',
+    );
+    await caller.resources.update({ key: 'zones', id: '1', values: { name: 'EU' }, version: null });
+    expect(resources.update.mock.calls.at(-1)).toEqual(['zones', '1', { name: 'EU' }]);
+    await caller.resources.perform({
+      key: 'refund_reasons',
+      id: '4',
+      action: 'rename',
+      input: { new_name: 'Broken' },
+    });
+    expect(resources.perform).toHaveBeenLastCalledWith('refund_reasons', '4', 'rename', {
+      new_name: 'Broken',
+    });
+    await caller.resources.perform({ key: 'refund_reasons', id: '4', action: 'retire', input: {} });
+    expect(resources.perform.mock.calls.at(-1)).toEqual(['refund_reasons', '4', 'retire']);
+    await expect(
+      caller.resources.perform({ key: 'refund_reasons', id: '4', action: 'rename', input: { 'a b': 1 } }),
+    ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+  });
+
+  it('returns the manifest with its meta and a removed action result', async () => {
+    const { a, resources } = withResources();
+    resources.perform.mockResolvedValueOnce({ record: null, message: 'Discarded.', removed: true } as never);
+    const caller = createCaller(ctx(['admin.resources'], a));
+    expect(await caller.resources.manifest()).toEqual({ types: [], meta: { gemVersion: '0.5.0' } });
+    expect(await caller.resources.perform({ key: 'zones', id: '1', action: 'discard' })).toEqual({
+      record: null,
+      message: 'Discarded.',
+      removed: true,
+    });
+  });
+
+  it('uploads a picked file and returns the blob', async () => {
+    const { a, resources } = withResources();
+    const caller = createCaller(ctx(['admin.resources'], a));
+    const file = { uri: 'file:///tmp/terms.pdf', name: 'terms.pdf', type: 'application/pdf' };
+    expect(await caller.resources.upload({ file })).toEqual(blob);
+    expect(resources.upload).toHaveBeenCalledWith(file);
+    await expect(caller.resources.upload({ file: { ...file, type: 'not a type' } })).rejects.toMatchObject({
+      code: 'BAD_REQUEST',
+    });
+    await expect(createCaller(ctx(['orders.read'], a)).resources.upload({ file })).rejects.toMatchObject({
+      code: 'PRECONDITION_FAILED',
+    });
+    expect(resources.upload).toHaveBeenCalledTimes(1);
+  });
+
+  it('tells the app a stale save apart as a conflict', async () => {
+    const { a, resources } = withResources();
+    resources.update.mockRejectedValueOnce(
+      new SpreeError({
+        kind: 'conflict',
+        status: 409,
+        message: 'Someone else changed this. Reload to see their changes.',
+      }),
+    );
+    const client = createTRPCClient<AppRouter>({
+      links: [localLink({ router: appRouter, createContext: async () => ctx(['admin.resources'], a) })],
+    });
+    const err = await client.resources.update
+      .mutate({ key: 'zones', id: '1', values: { name: 'EU' }, version: 2 })
+      .catch((e: unknown) => e);
+    expect(err).toMatchObject({
+      message: 'Someone else changed this. Reload to see their changes.',
+      data: { code: 'CONFLICT', spreeKind: 'conflict' },
     });
   });
 });

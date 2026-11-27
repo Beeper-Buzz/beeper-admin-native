@@ -1,12 +1,12 @@
-import type { AdminFilter } from '@instincts/spree-domain';
 import { layout, space } from '@instincts/spree-ui';
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { ActivityIndicator, FlatList, Pressable, RefreshControl, View } from 'react-native';
+import { type FilterChoice, type FilterChoices, filterValues } from '@/admin-types/filters';
+import { ListFilters } from '@/admin-types/list-filters';
 import { useAdminType } from '@/admin-types/use-admin-types';
 import { listDetail } from '@/admin-types/values';
-import { FilterChips } from '@/components/filter-chips';
 import { ListRow } from '@/components/list-row';
 import { EmptyState, Screen, TextField } from '@/components/primitives';
 import { Text } from '@/components/text';
@@ -14,30 +14,16 @@ import { useDebounced } from '@/components/use-debounced';
 import { useTheme } from '@/theme/theme';
 import { useTRPC } from '@/trpc/trpc';
 
-const ALL = '*';
-
-/** A filter's chosen option as the store's value (`true`, `'draft'`), skipping "All". */
-function filterValues(filters: AdminFilter[], chosen: Record<string, string>) {
-  const out: Record<string, string | number | boolean> = {};
-  for (const f of filters) {
-    const key = chosen[f.name];
-    const option = key && key !== ALL ? f.options.find((o) => String(o.value) === key) : undefined;
-    if (option) out[f.name] = option.value;
-  }
-  return out;
-}
-
-/** Records of one host-described admin type: search, filter chips, infinite list. */
+/** Records of one host-described admin type: search, filters, infinite list. */
 export default function AdminTypeListScreen() {
   const { key } = useLocalSearchParams<{ key: string }>();
   const trpc = useTRPC();
   const { colors } = useTheme();
-  const { type, isPending, error } = useAdminType(key);
+  const { type, types, isPending, error } = useAdminType(key);
   const [search, setSearch] = useState('');
   const query = useDebounced(search.trim());
-  const [chosen, setChosen] = useState<Record<string, string>>({});
-  const filters = type ? type.filters.filter((f) => f.options.length) : [];
-  const values = filterValues(filters, chosen);
+  const [chosen, setChosen] = useState<FilterChoices>({});
+  const values = type ? filterValues(type.filters, chosen, types ?? []) : {};
   const list = useInfiniteQuery({
     ...trpc.resources.list.infiniteQueryOptions(
       {
@@ -109,28 +95,13 @@ export default function AdminTypeListScreen() {
                 />
               </View>
             ) : null}
-            {filters.map((f, i) => (
-              <View key={f.name} accessibilityLabel={`Filter by ${f.label}`}>
-                <FilterChips
-                  options={[
-                    [ALL, filters.length > 1 ? `Any ${f.label.toLowerCase()}` : 'All'] as const,
-                    ...f.options.map((o) => [String(o.value), o.label] as const),
-                  ]}
-                  value={chosen[f.name] ?? ALL}
-                  onChange={(k) => setChosen((c) => ({ ...c, [f.name]: k }))}
-                  count={i === filters.length - 1 ? list.data?.pages[0]?.totalCount : undefined}
-                />
-              </View>
-            ))}
-            {!filters.length && list.data?.pages[0]?.totalCount !== undefined ? (
-              <Text
-                size="footnote"
-                tone="muted"
-                style={{ paddingHorizontal: layout.gutter, paddingVertical: space[2] }}
-              >
-                {list.data.pages[0].totalCount} {list.data.pages[0].totalCount === 1 ? 'record' : 'records'}
-              </Text>
-            ) : null}
+            <ListFilters
+              type={type}
+              types={types ?? []}
+              choices={chosen}
+              onChange={(name: string, choice: FilterChoice) => setChosen((c) => ({ ...c, [name]: choice }))}
+              count={list.data?.pages[0]?.totalCount}
+            />
           </View>
         }
         renderItem={({ item, index }) => (

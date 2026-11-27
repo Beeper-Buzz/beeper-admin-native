@@ -5,13 +5,19 @@ module SpreeAdminNative
     # fields only; secret-looking columns are never read or written.
     class ResourcesController < BaseController
       before_action :require_admin!
-      before_action :load_definition, except: :index
+      before_action :load_definition, except: %i[index upload]
       before_action :load_record, only: %i[show update destroy perform]
 
       PER_PAGE_MAX = 100
+      MAX_UPLOAD_BYTES = 25 * 1024 * 1024
+      CONFLICT_MESSAGE = 'Someone else changed this. Reload to see their changes.'.freeze
+
+      rescue_from ActiveRecord::StaleObjectError do
+        render_error('conflict', CONFLICT_MESSAGE, :conflict)
+      end
 
       def index
-        render json: { data: SpreeAdminNative.resources.available.map(&:manifest) }
+        render json: { data: SpreeAdminNative.resources.available.map(&:manifest), meta: { gem_version: SpreeAdminNative::VERSION } }
       end
 
       def list
@@ -21,8 +27,9 @@ module SpreeAdminNative
         per_page = params[:per_page].present? ? params[:per_page].to_i.clamp(1, PER_PAGE_MAX) : 25
         page = [params[:page].to_i, 1].max
         total = scope.count
-        rows = scope.offset((page - 1) * per_page).limit(per_page).to_a
-        render json: { data: rows.map { |r| present(r) }, meta: { page: page, per_page: per_page, total_count: total } }
+        rows = with_attachments(scope).offset((page - 1) * per_page).limit(per_page).to_a
+        references = reference_titles(rows)
+        render json: { data: rows.map { |r| present(r, references) }, meta: { page: page, per_page: per_page, total_count: total } }
       end
 
       def show
@@ -32,24 +39,19 @@ module SpreeAdminNative
       def create
         return refuse('create') unless @definition.crud?(:create)
 
-        record = @definition.relation.new
-        assign(record)
-        if record.save
-          render json: { data: present(record) }, status: :created
-        else
-          invalid(record)
-        end
+        save(@definition.relation.new, :create)
       end
 
       def update
         return refuse('update') unless @definition.crud?(:update)
+        return not_allowed("This one can't be changed from the app.") unless @definition.can_update?(@record)
 
-        assign(@record)
-        @record.save ? render(json: { data: present(@record) }) : invalid(@record)
+        save(@record, :update)
       end
 
       def destroy
         return refuse('delete') unless @definition.crud?(:destroy)
+        return not_allowed("This one can't be deleted from the app.") unless @definition.can_destroy?(@record)
 
         if @record.destroy
           head :no_content
@@ -63,14 +65,47 @@ module SpreeAdminNative
         return render_error('not_found', 'No such action.', :not_found) unless action
         return render_error('invalid', "#{action.label} isn't available for this one.") unless action.available?(@record)
 
-        message = action.run.call(@record, current_admin)
-        @record.reload if @record.persisted?
-        render json: { data: present(@record), message: message.is_a?(String) ? message : nil }
+        input, errors = cast_inputs(action)
+        if errors.any?
+          message = errors.map { |name, msgs| "#{action.inputs.find { |f| f.name.to_s == name }&.label || name} #{msgs.first}" }.to_sentence
+          return render json: { error: { code: 'invalid', message: message, fields: errors } }, status: :unprocessable_entity
+        end
+
+        result = action.call(@record, current_admin, input)
+        message, removed = action_outcome(result)
+        if removed || !@definition.relation.where(@definition.model_class.primary_key => @record.id).exists?
+          render json: { data: nil, removed: true, message: message }
+        else
+          @record.reload
+          render json: { data: present(@record), message: message }
+        end
       rescue ActiveRecord::RecordInvalid => e
         invalid(e.record)
       rescue StandardError => e
         Rails.logger.error("[spree_admin_native] #{@definition.key}##{action&.name}: #{e.class}: #{e.message}")
         render_error('action_failed', e.message.presence || "#{action&.label} failed.")
+      end
+
+      # POST resources/uploads (multipart `file`): an ActiveStorage blob whose signed_id an image
+      # or file field accepts.
+      def upload
+        return render_error('unsupported', 'This store has no file storage.') unless defined?(ActiveStorage::Blob)
+
+        file = params[:file]
+        unless file.respond_to?(:original_filename) && file.respond_to?(:read)
+          return render json: { error: { code: 'invalid', message: 'Choose a file to upload.', fields: { 'file' => ["can't be blank"] } } },
+                        status: :unprocessable_entity
+        end
+        return render_error('too_large', 'Files can be up to 25 MB.', 413) if file.size > MAX_UPLOAD_BYTES
+
+        attributes = { io: file, filename: file.original_filename, content_type: file.content_type.presence }.compact
+        blob =
+          if ActiveStorage::Blob.respond_to?(:create_and_upload!)
+            ActiveStorage::Blob.create_and_upload!(**attributes) # Rails 6.1+
+          else
+            ActiveStorage::Blob.create_after_upload!(**attributes) # Rails 6.0
+          end
+        render json: { data: { signed_id: blob.signed_id }.merge(blob_json(blob)) }, status: :created
       end
 
       private
@@ -84,6 +119,55 @@ module SpreeAdminNative
         @record = @definition.relation.find(params[:id])
       end
 
+      def version_param
+        value = params[:version]
+        value.nil? || value.to_s.strip.empty? ? nil : value
+      end
+
+      # Assigns the app's values, runs the hooks and saves, all in one transaction.
+      def save(record, op)
+        outcome = nil
+        @definition.model_class.transaction(requires_new: true) do
+          if op == :update && version_param
+            record.lock!
+            if @definition.stale?(record, version_param)
+              outcome = :conflict
+              raise ActiveRecord::Rollback
+            end
+          end
+          assign(record)
+          @definition.run_hooks(:before_save, record, current_admin, op)
+          early = record.errors.to_hash
+          if early.any?
+            # The model's own validations too, so the form shows every problem at once.
+            record.valid?
+            early.each { |attr, messages| messages.each { |m| record.errors.add(attr, m) unless record.errors.added?(attr, m) } }
+            outcome = :invalid
+            raise ActiveRecord::Rollback
+          end
+          unless record.save
+            outcome = :invalid
+            raise ActiveRecord::Rollback
+          end
+          @definition.run_hooks(:after_save, record, current_admin, op)
+          if record.errors.any?
+            outcome = :invalid
+            raise ActiveRecord::Rollback
+          end
+          outcome = :saved
+        end
+
+        case outcome
+        when :saved then render json: { data: present(record) }, status: op == :create ? :created : :ok
+        when :conflict then render_error('conflict', CONFLICT_MESSAGE, :conflict)
+        else invalid(record)
+        end
+      rescue ActiveRecord::RecordInvalid => e
+        invalid(e.record)
+      rescue ActiveRecord::RecordNotSaved => e
+        render_error('invalid', e.message.presence || "Couldn't save it.")
+      end
+
       def apply_search(scope)
         term = params[:q].to_s.strip
         return scope if term.empty? || @definition.search_attrs.empty?
@@ -95,15 +179,68 @@ module SpreeAdminNative
       end
 
       def apply_filters(scope)
-        filters = params[:filter].respond_to?(:to_unsafe_h) ? params[:filter].to_unsafe_h : {}
-        allowed = @definition.filters.map { |f| f[:name] }
-        filters.slice(*allowed).each do |name, value|
-          scope = scope.where(name => cast(name, value))
+        given = params[:filter].respond_to?(:to_unsafe_h) ? params[:filter].to_unsafe_h : {}
+        @definition.filters.each do |filter|
+          name = filter[:name]
+          next unless given.key?(name)
+
+          value = given[name]
+          scope =
+            case filter[:type]
+            when 'presence' then presence_filter(scope, name, value)
+            when 'date_range' then date_range_filter(scope, name, value)
+            when 'reference' then value.to_s.strip.empty? ? scope : scope.where(name => value.to_s)
+            else scope.where(name => cast_filter(name, value))
+            end
         end
         scope
       end
 
-      def cast(name, value)
+      def presence_filter(scope, name, value)
+        case value.to_s
+        when 'set' then scope.where.not(name => nil)
+        when 'unset' then scope.where(name => nil)
+        else scope
+        end
+      end
+
+      # filter[name][from] / [to]: ISO dates, both days included, in the store's time zone.
+      def date_range_filter(scope, name, value)
+        return scope unless value.respond_to?(:key?)
+
+        model = @definition.model_class
+        column = model.columns_hash[name]
+        return scope unless column
+
+        from = parse_date(value['from'] || value[:from])
+        to = parse_date(value['to'] || value[:to])
+        table = model.arel_table
+        if column.type == :date
+          scope = scope.where(table[name].gteq(from)) if from
+          scope = scope.where(table[name].lteq(to)) if to
+        else
+          zone = store_time_zone
+          scope = scope.where(table[name].gteq(from.in_time_zone(zone))) if from
+          scope = scope.where(table[name].lt((to + 1).in_time_zone(zone))) if to
+        end
+        scope
+      end
+
+      def parse_date(value)
+        value.to_s.strip.empty? ? nil : Date.iso8601(value.to_s.strip)
+      rescue ArgumentError
+        nil
+      end
+
+      def store_time_zone
+        store = Spree::Store.respond_to?(:default) ? Spree::Store.default : nil
+        name = store.respond_to?(:preferred_timezone) ? store.preferred_timezone : nil
+        (name.present? && ActiveSupport::TimeZone[name]) || Time.zone
+      rescue StandardError
+        Time.zone
+      end
+
+      def cast_filter(name, value)
         field = @definition.resolved_field(name)
         return ActiveModel::Type::Boolean.new.cast(value) if field&.type == :boolean
         return nil if value.to_s == ''
@@ -111,8 +248,42 @@ module SpreeAdminNative
         value
       end
 
+      # The block gets every declared input (symbol keys), cast; absent ones are nil or their
+      # default. Unknown keys are ignored.
+      def cast_inputs(action)
+        given = params[:input].respond_to?(:to_unsafe_h) ? params[:input].to_unsafe_h : {}
+        values = {}
+        errors = {}
+        action.inputs.each do |field|
+          name = field.name.to_s
+          value =
+            begin
+              Resources.cast(field, given.key?(name) ? given[name] : field.default)
+            rescue ArgumentError, TypeError, JSON::ParserError
+              errors[name] = [I18n.t('errors.messages.invalid', default: 'is invalid')]
+              next
+            end
+          if field.required && Resources.blank?(value) && value != false
+            errors[name] = [I18n.t('errors.messages.blank', default: "can't be blank")]
+            next
+          end
+          values[field.name] = value
+        end
+        [values, errors]
+      end
+
+      def action_outcome(result)
+        if result.is_a?(Hash)
+          message = result[:message] || result['message']
+          removed = result[:removed] || result['removed']
+          [message.is_a?(String) ? message : nil, !!removed]
+        else
+          [result.is_a?(String) ? result : nil, false]
+        end
+      end
+
       def writable
-        @definition.resolved_fields.reject { |f| f.readonly || %i[readonly image].include?(f.type) }
+        @definition.resolved_fields.reject { |f| f.readonly || f.type == :readonly }
       end
 
       def assign(record)
@@ -121,70 +292,170 @@ module SpreeAdminNative
           next unless values.key?(f.name.to_s)
 
           value = values[f.name.to_s]
+          if Resources::ATTACHMENT_TYPES.include?(f.type)
+            assign_attachment(record, f, value)
+            next
+          end
           value = nil if value == '' && f.type != :string && f.type != :text
-          value = JSON.parse(value) if f.type == :json && value.is_a?(String) && value.present?
+          if f.type == :json && value.is_a?(String) && value.present?
+            begin
+              value = JSON.parse(value)
+            rescue JSON::ParserError
+              record.errors.add(f.name, 'is not valid JSON')
+              next
+            end
+          end
           record.public_send("#{f.name}=", value)
         end
-      rescue JSON::ParserError
-        record.errors.add(:base, 'One of the JSON fields is not valid JSON.')
       end
 
-      def present(record)
+      # A blob signed_id attaches (POST resources/uploads); null removes the attachment, which
+      # ActiveStorage purges once the save commits.
+      def assign_attachment(record, field, value)
+        return unless record.respond_to?("#{field.name}=")
+
+        if value.nil? || value == ''
+          record.public_send("#{field.name}=", nil)
+        elsif (blob = find_blob(value))
+          record.public_send("#{field.name}=", blob)
+        else
+          record.errors.add(field.name, 'is not a valid upload')
+        end
+      end
+
+      def find_blob(signed_id)
+        return nil unless signed_id.is_a?(String) && defined?(ActiveStorage::Blob)
+
+        ActiveStorage::Blob.find_signed(signed_id)
+      rescue ActiveSupport::MessageVerifier::InvalidSignature, ActiveRecord::RecordNotFound
+        nil
+      end
+
+      # Attachments for image and file fields in one query each per page.
+      def with_attachments(scope)
+        @definition.resolved_fields.select { |f| Resources::ATTACHMENT_TYPES.include?(f.type) }.each do |f|
+          scope = scope.public_send("with_attached_#{f.name}") if scope.respond_to?("with_attached_#{f.name}")
+        end
+        scope
+      end
+
+      # { field name => { id => title } } for the reference fields of these rows: one query per
+      # reference field, not per row.
+      def reference_titles(rows)
+        @definition.resolved_fields.select { |f| f.type == :reference }.each_with_object({}) do |field, out|
+          titles = {}
+          target = field.resource && SpreeAdminNative.resources[field.resource]
+          if target
+            ids = rows.map { |row| row.respond_to?(field.name) ? row.public_send(field.name) : nil }
+            ids = ids.reject { |id| id.nil? || id.is_a?(ActiveRecord::Base) || id.to_s.empty? }.map(&:to_s).uniq
+            if ids.any?
+              model = target.model_class
+              model.where(model.primary_key => ids).each { |row| titles[row.id.to_s] = target.title_for(row) }
+            end
+          end
+          out[field.name] = titles
+        end
+      end
+
+      def present(record, references = nil)
+        references ||= reference_titles([record])
         values = {}
-        @definition.resolved_fields.each { |f| values[f.name.to_s] = value_of(record, f) }
-        {
+        @definition.resolved_fields.each { |f| values[f.name.to_s] = value_of(record, f, references) }
+        json = {
           id: record.id.to_s,
-          title: record.public_send(@definition.title_attr).to_s.presence || "##{record.id}",
-          subtitle: @definition.subtitle_attr ? record.public_send(@definition.subtitle_attr)&.to_s : nil,
+          title: @definition.title_for(record),
+          subtitle: @definition.subtitle_for(record),
           values: values,
-          actions: @definition.member_actions.select { |a| a.available?(record) }.map { |a| a.name.to_s }
+          actions: @definition.member_actions.select { |a| a.available?(record) }.map { |a| a.name.to_s },
+          can: { update: @definition.can_update?(record), destroy: @definition.can_destroy?(record) }
         }
+        version = @definition.version_of(record)
+        json[:version] = version unless version.nil?
+        json
       end
 
-      def value_of(record, field)
+      def value_of(record, field, references)
         return image_url(record, field.name) if field.type == :image
+        return file_value(record, field.name) if field.type == :file
 
         value = record.respond_to?(field.name) ? record.public_send(field.name) : nil
         case value
-        when Time, DateTime, ActiveSupport::TimeWithZone then value.iso8601
-        when Date then value.iso8601
-        when BigDecimal then value.to_s('F')
         when ActiveRecord::Base then { id: value.id.to_s, title: value.try(:name) || value.try(:title) || "##{value.id}" }
         else
-          field.type == :reference && value.present? ? reference_value(field, value) : value
+          if field.type == :reference && !value.nil? && value.to_s != ''
+            title = references.fetch(field.name, {})[value.to_s]
+            { id: value.to_s, title: title || "##{value}" }
+          else
+            Resources.json_value(value)
+          end
         end
       end
 
-      # A reference field holds an id; the app shows its title.
-      def reference_value(field, id)
-        target = field.resource && SpreeAdminNative.resources[field.resource]
-        return { id: id.to_s, title: "##{id}" } unless target
+      def attachment_of(record, name)
+        attachment = record.respond_to?(name) ? record.public_send(name) : nil
+        attachment.respond_to?(:attached?) && attachment.attached? ? attachment : nil
+      end
 
-        row = target.model_class.find_by(id: id)
-        { id: id.to_s, title: row ? (row.public_send(target.title_attr).to_s.presence || "##{id}") : "##{id}" }
+      def blob_url(attachable)
+        "#{request.base_url}#{Rails.application.routes.url_helpers.rails_blob_path(attachable, only_path: true)}"
+      end
+
+      def blob_json(blob)
+        { filename: blob.filename.to_s, content_type: blob.content_type, byte_size: blob.byte_size, url: blob_url(blob) }
       end
 
       def image_url(record, name)
-        attachment = record.respond_to?(name) ? record.public_send(name) : nil
-        return nil unless attachment.respond_to?(:attached?) && attachment.attached?
-
-        "#{request.base_url}#{Rails.application.routes.url_helpers.rails_blob_path(attachment, only_path: true)}"
+        attachment = attachment_of(record, name)
+        attachment ? blob_url(attachment) : nil
       rescue StandardError
         nil
       end
 
+      def file_value(record, name)
+        attachment = attachment_of(record, name)
+        attachment ? blob_json(attachment.blob).merge(url: blob_url(attachment)) : nil
+      rescue StandardError
+        nil
+      end
+
+      # Errors by field: an association's (country) under its foreign key (country_id) when that
+      # is a field; `base` stays `base`.
+      def error_fields(record)
+        names = @definition.resolved_fields.map { |f| f.name.to_s }
+        record.errors.to_hash.each_with_object({}) do |(attr, messages), out|
+          key = attr.to_s
+          unless key == 'base' || names.include?(key)
+            reflection = record.class.reflect_on_association(attr)
+            key = reflection.foreign_key.to_s if reflection&.belongs_to? && names.include?(reflection.foreign_key.to_s)
+          end
+          (out[key] ||= []).concat(messages)
+          out[key].uniq!
+        end
+      end
+
       def invalid(record)
         render json: {
-          error: {
-            code: 'invalid',
-            message: record.errors.full_messages.to_sentence,
-            fields: record.errors.to_hash.transform_keys(&:to_s)
-          }
+          error: { code: 'invalid', message: error_sentence(record), fields: error_fields(record) }
         }, status: :unprocessable_entity
+      end
+
+      # Full messages, except that one already naming its attribute ("Alt text can't be blank"
+      # on alt) isn't prefixed again.
+      def error_sentence(record)
+        record.errors.to_hash.flat_map do |attr, messages|
+          messages.map do |message|
+            name = attr.to_s == 'base' ? nil : record.class.human_attribute_name(attr)
+            name.nil? || message.to_s.downcase.start_with?("#{name.downcase} ") ? message : record.errors.full_message(attr, message)
+          end
+        end.uniq.to_sentence
       end
 
       def refuse(what)
         render_error('not_allowed', "This store doesn't allow #{what} for #{@definition.label.downcase} from the app.", :forbidden)
+      end
+
+      def not_allowed(message)
+        render_error('not_allowed', message, :forbidden)
       end
 
       def render_error(code, message, status = :unprocessable_entity)

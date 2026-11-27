@@ -55,7 +55,7 @@ services:
     volumes:
       - ./4.2:/seed:ro
       - ../../gems/spree_admin_native:/gems/spree_admin_native:ro
-      # Demo admin types (companion gem 0.4) over Spree's own models, for the app and contract tests.
+      # Demo admin types (companion gem 0.5) over Spree's own models, for the app and contract tests.
       - ./4.2/initializers/admin_native_demo_types.rb:/app/config/initializers/admin_native_demo_types.rb:ro
       - spree42_storage:/app/storage
     healthcheck:
