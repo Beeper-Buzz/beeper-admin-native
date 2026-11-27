@@ -46,6 +46,7 @@ SpreeAdminNative.configure do |c|
   c.low_stock_threshold = 2
   c.pairing_ttl = 10.minutes
   c.expose_versions = true # Spree and gem versions on the public capabilities endpoint
+  c.permit_bigdecimal_yaml = true # see "Decimal settings" below
 end
 
 # Extensions announce features the app can light up:
@@ -59,17 +60,36 @@ work the same way: each device sends the token for the app it is running.
 
 All under `/api/admin_native/v1`.
 
-| Endpoint                 | Auth                          | What                                                                          |
-| ------------------------ | ----------------------------- | ----------------------------------------------------------------------------- |
-| `GET capabilities`       | none                          | API families, extra capabilities and sign-in methods, store name and currency |
-| `POST pairings/exchange` | one-time code                 | `{code, device_name, platform}` → `{token, device, user}`                     |
-| `GET summary`            | device token or admin API key | Today's orders and sales, orders to fulfil, payments due, low-stock variants  |
-| `GET devices`            | device token or admin API key | Your paired devices                                                           |
-| `PATCH devices/current`  | device token                  | `{push_token, push_enabled}`                                                  |
-| `DELETE devices/:id`     | device token or admin API key | Sign a device out                                                             |
+| Endpoint                                       | Auth                          | What                                                                                                           |
+| ---------------------------------------------- | ----------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `GET capabilities`                             | none                          | API families, extra capabilities and sign-in methods, store name and currency                                  |
+| `POST pairings/exchange`                       | one-time code                 | `{code, device_name, platform}` → `{token, device, user}`                                                      |
+| `GET summary`                                  | device token or admin API key | Today's orders and sales, orders to fulfil, payments due, low-stock variants                                   |
+| `GET devices`                                  | device token or admin API key | Your paired devices                                                                                            |
+| `PATCH devices/current`                        | device token                  | `{push_token, push_enabled}`                                                                                   |
+| `DELETE devices/:id`                           | device token or admin API key | Sign a device out                                                                                              |
+| `GET refund_reasons`                           | device token or admin API key | Active refund reasons                                                                                          |
+| `POST orders/:number/payments/:number/refunds` | device token or admin API key | `{amount, reason_id?}` → refund through the payment's gateway (default reason: Return processing)              |
+| `GET promotions`                               | device token or admin API key | `q`, `status` (`active`, `scheduled`, `expired`), `page`, `per_page`                                           |
+| `GET promotions/:id`                           | device token or admin API key | One promotion                                                                                                  |
+| `POST promotions`                              | device token or admin API key | `{name, code?, description?, starts_at?, expires_at?, usage_limit?, discount: {type: percent\|fixed, amount}}` |
+| `PATCH promotions/:id`                         | device token or admin API key | Any of those fields; `discount` only on promotions with a single order discount                                |
 
 Send the token as `X-Spree-Token` (or `Authorization: Bearer`). Device tokens also work on Spree's
 API v1 wherever an API key does.
+
+Refunds and promotions exist for Spree 4.2–4.3, whose API v1 has no refund action and only shows
+one promotion. The app uses Spree's own APIs for both on 4.4+. Promotions made elsewhere with
+other rules or actions are listed and can be renamed, rescheduled or expired; their discount
+stays as Spree admin set it (`editable_discount: false`).
+
+### Decimal settings
+
+Spree keeps calculator settings (discount percentages and amounts) in YAML columns, and Rails
+6.1.6.1+ only reads permitted classes back from YAML. Decimal settings are `BigDecimal`, so on an
+app that doesn't permit it a promotion's discount saves but can't be read, in Spree's admin too.
+The gem adds `BigDecimal` to the app's permitted classes; set `permit_bigdecimal_yaml = false` if
+you manage `yaml_column_permitted_classes` yourself.
 
 ## Security
 

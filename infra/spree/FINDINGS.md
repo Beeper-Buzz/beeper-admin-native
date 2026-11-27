@@ -371,3 +371,198 @@ The files were scanned for keys and values matching
 token/secret/password/api_key/digest/`sk_`/`pk_`. The only hits were 4.2's
 per-order guest `token`, now `[REDACTED order guest token]`. IDs, emails
 (`customerN@example.com`) and addresses are seed data.
+
+## f. Order actions and promotions (2026-11-26)
+
+Proven by `packages/spree-sdk/contract` on both stores.
+
+| Action | 4.2 (API v1) | 6.0 (Admin API v3) |
+| --- | --- | --- |
+| Ship | `PUT /api/v1/shipments/:number/ship` with `shipment[tracking]`: the before-action saves tracking, then ships. Needs a `ready` (paid) shipment | `PATCH /orders/:id/fulfillments/:id/fulfill` with `tracking`. Refuses unpaid orders: "This order is not paid for yet" |
+| Capture | `PUT /api/v1/orders/:number/payments/:number/capture` | `PATCH /orders/:id/payments/:id/capture` |
+| Cancel | `PUT /api/v1/orders/:number/cancel` | `PATCH /orders/:id/cancel` |
+| Refund | Routed (`PUT …/payments/:id/credit`) but `PaymentsController` has no `credit` action. The companion gem 0.2 creates a `Spree::Refund` instead (`POST /api/admin_native/v1/orders/:number/payments/:number/refunds`) | `POST /orders/:id/refunds` with `payment_id`, `amount`, `refund_reason_id` |
+| Refund reasons | gem `GET refund_reasons` ("Return processing" is seeded) | `GET /refund_reasons` |
+
+Promotions:
+
+1. **4.2**: API v1 only has `GET /api/v1/promotions/:id`. The gem adds list, create and update.
+   Spree keeps calculator settings in YAML columns, and Rails 6.1.6.1+ refuses `BigDecimal` from
+   YAML unless permitted, so a percent or fixed discount saved but couldn't be read back (500 on
+   the next load, in Spree admin too). The gem permits `BigDecimal`.
+2. **6.0**: `/api/v3/admin/promotions` with `expand=actions` returns each promotion's actions and
+   calculator (`{type: "flat_percent_item_total", preferences: {flat_percent: "20.0"}}`).
+   Writes take `actions: [{id?, type: "create_adjustment", calculator: {type, preferences}}]`,
+   and that array replaces the whole set, so updates must echo the existing action id.
+   `kind` is `coupon_code` or `automatic`; codes are stored lowercase. Ransack allows `name`,
+   `code`, `kind`, `starts_at`, `expires_at` (OR groups via `q[g][n][m]=or`).
+3. **6.0 bug**: a `PATCH` that fails validation (e.g. `expires_at` before `starts_at`) still
+   saves the `actions` change in the same request. The SDK validates the schedule before sending.
+## g. Products, stock and customers
+
+Established on 2026-11-26/27 against the same stores, live unless marked
+*(gem source)*. These back the `api-v1` and `admin-v3` products and customers
+adapters and `packages/spree-sdk/contract/catalog.contract.ts`.
+
+### 4.2: products through API v1
+
+```
+GET  /api/v1/products                          products#index  (q[...] ransack, page, per_page, ids=1,2,3)
+GET  /api/v1/products/:id                      products#show   (id or slug)
+PUT  /api/v1/products/:id                      products#update ({ product: {...} })
+PUT  /api/v1/products/:product_id/variants/:id variants#update ({ variant: {...} })
+```
+
+- **There is no status column, and the payload can't say a product is
+  archived.** v1 renders `available_on` but not `discontinue_on`,
+  `deleted_at` or `updated_at`. For admins, the product scope hides
+  discontinued (`discontinue_on <= now`) and deleted products unless the
+  request adds `show_discontinued=1` / `show_deleted=1` *(gem source:
+  `Spree::Api::BaseController#product_scope`)*. That holds for show and
+  **update** too: `PUT /api/v1/products/116` on a discontinued product is
+  **404**, and the same request with `?show_discontinued=1` is 200.
+- The adapter therefore derives status as: found only with `show_*` →
+  archived; `available_on` null or in the future → draft; else active. A
+  status write maps to draft → `available_on: null, discontinue_on: null`;
+  active → `available_on` now (kept if already past), `discontinue_on: null`;
+  archived → `discontinue_on` now. All three were accepted live. The model
+  refuses a `discontinue_on` earlier than `available_on`, so archiving a
+  scheduled draft also clears its future `available_on`. Re-activating sets
+  `available_on` to the time of the write, not the original date.
+- **`available_on` is not ransackable.** Product Ransack allows `id`, `name`,
+  `created_at`, `updated_at`, `description`, `slug` and `discontinue_on`.
+  `q[available_on_null]=1` is silently ignored (116 of 116 products come
+  back). So:
+  - `archived`: `show_discontinued=1&q[discontinue_on_lteq]=<now>`;
+  - `all`: `show_discontinued=1`, then one `?ids=…` request (default scope)
+    marks as archived the products it doesn't return;
+  - `active` / `draft`: filtered in the adapter, reading up to five server
+    pages per call. The cursor is `"<page>"` or `"<page>:<rows read>"` and no
+    `totalCount` is given.
+- Name or SKU search: `q[name_or_variants_including_master_sku_cont]=blue_xs`
+  returns 24 products (it is SQL `LIKE`, so `_` matches any character).
+- **Prices carry no currency.** `price` is a bare decimal in
+  `Spree::Config[:currency]`; `display_price` is `"$69.99"`. The adapter reads
+  the default store's `default_currency` from `GET /api/v1/stores` once.
+- **`compare_at_price` is write-only in v1.** Both `variant[compare_at_price]`
+  and `product[compare_at_price]` are permitted and saved, but no v1 view
+  renders it, so the adapter reports `compareAtPrice: null`. The 4.2
+  Storefront API does render it
+  (`GET /api/v2/storefront/products/:slug?include=variants`, active products
+  only), and the contract test reads it there to prove the write.
+- **A master can't be written through the variants endpoint** when the
+  product has option variants: `PUT /api/v1/products/116/variants/116` is
+  404, while variant 232 of the same product is 200. `PUT
+  /api/v1/products/116` with `product[price]`, `product[compare_at_price]` or
+  `product[sku]` writes the master (delegated), which is what the adapter does.
+- Untracked variants report `total_on_hand` as infinity; the adapter maps
+  them to `null`. The 4.2 seed has no product images.
+- **v1 reads are publicly cacheable**: products index/show and users index
+  answer `Cache-Control: public, max-age=900` (`expires_in 15.minutes, public:
+  true`). A client cache that honours it (NSURLCache) would show a product as
+  it was before an edit, so the adapters send `Cache-Control: no-cache` on
+  these reads.
+
+### 4.2: stock
+
+```sh
+curl -s  -H "X-Spree-Token: $KEY42" "$B42/api/v1/stock_locations"     # ordered by name; one, "default"
+curl -sg -H "X-Spree-Token: $KEY42" "$B42/api/v1/stock_locations/1/stock_items?q[variant_id_eq]=232"
+curl -s -X PUT -H "X-Spree-Token: $KEY42" -H 'Content-Type: application/json' \
+  -d '{"stock_item":{"count_on_hand":7,"force":true}}' "$B42/api/v1/stock_locations/1/stock_items/232"
+```
+
+- Without `force: true`, `count_on_hand` is **added** to the current count;
+  with it the count is set (35 → 7 → 35 live). `POST …/stock_items` creates a
+  missing item and adjusts it by `count_on_hand`.
+- v1 doesn't render a location's `default` flag, and neither `default` nor
+  `active` is ransackable, so the adapter uses the first active location in
+  the API's (name) order.
+
+### 4.2: customers are users
+
+- `GET /api/v1/users` takes **no Ransack**. `q[email_start]=x` selects
+  `with_email` (`email LIKE '%x%'`); adding `q[ship_address_firstname_start]=x`
+  selects `with_email_or_address` (email, or any saved address's first or
+  last name). Both are **case-sensitive** on Postgres:
+  `q[email_start]=Customer1` finds nothing. The address join can repeat a
+  user; the adapter drops repeats.
+- A user is `id`, `email`, `created_at`, `updated_at` and the bill and ship
+  addresses: names and phone only come from those (the seed users have none).
+  The list has `count`, `current_page` and `pages`, but no total.
+- Order count:
+  `GET /api/v1/orders?q[user_id_eq]=3&q[completed_at_not_null]=1&per_page=1`
+  answers `pages: 5`. (`user_id` isn't a ransackable order attribute, but
+  `user_id_eq` resolves through the ransackable `user` association.)
+  `customers.get` spends this one request; the list leaves `ordersCount` and
+  `totalSpent` null.
+
+### 6.0: Admin API v3
+
+```sh
+curl -sg -H "X-Spree-Api-Key: $KEY60" \
+  "$B60/api/v3/admin/products?q[search]=espresso&q[status_eq]=active&sort=-created_at&expand=variants,option_types,media"
+curl -s -X PATCH -H "X-Spree-Api-Key: $KEY60" "$B60/api/v3/admin/products/prod_8cR0I7fEbw/archive"   # also /draft, /activate
+curl -s -X PATCH -H "X-Spree-Api-Key: $KEY60" -H 'Content-Type: application/json' \
+  -d '{"prices":[{"currency":"USD","amount":"899.99","compare_at_amount":"999.00"}]}' \
+  "$B60/api/v3/admin/products/prod_UkLWZg9DAJ/variants/variant_EfhxLZ9ck8"
+curl -s -X POST -H "X-Spree-Api-Key: $KEY60" -H 'Content-Type: application/json' \
+  -d '{"stock_levels":[{"variant_id":"variant_EfhxLZ9ck8","stock_location_id":"sloc_UkLWZg9DAJ","count_on_hand":4990}]}' \
+  "$B60/api/v3/admin/stock_levels/bulk_upsert"                             # {"stock_level_count":1}
+```
+
+- `q[search]` matches names **and SKUs**
+  (`AUTOMATIC-ESPRESSO-MACHINE-SILVER` finds its product). Products are found
+  by prefixed id only: `GET …/products/automatic-espresso-machine` is 404.
+- **There is no master variant.** `variants` lists every variant, including
+  a simple product's only one (`The Spree Commerce Handbook`, 1 variant).
+- Status has its own member actions (`activate`, `draft`, `archive`), which
+  run Spree's workflow and publish its event *(gem source)*; `status` in a
+  plain PATCH skips them. The adapter uses the actions.
+- `description` is rich text: reads return a plain-text `description` and the
+  stored `description_html`. The adapter reads `description_html` so an edit
+  round-trips.
+- `prices` on a variant PATCH is upserted by currency and needs `amount`, so
+  the adapter sends the current amount when only the compare-at price
+  changes. Price-list prices (`price_list_id` set) are untouched. The seed's
+  "no compare-at price" is `"0.00"`, read as `null`.
+- `stock_levels/bulk_upsert` sets an absolute count and creates the stock
+  level when it is missing; each change is recorded as an `adjusted` movement.
+  The default location is the one with `default: true` in
+  `GET /api/v3/admin/stock_locations`. The digital handbook has
+  `track_inventory: false` and `total_on_hand: null`.
+- Customers: `GET /api/v3/admin/customers?q[search]=…` matches email and
+  first or last name, case-insensitively (`Ada` and `Lovelace` both find
+  `customer1@example.com`). Each carries `orders_count` and `total_spent`
+  (a bare decimal; the adapter prices it in `GET /api/v3/admin/store`'s
+  `default_currency`). Default addresses need
+  `expand=default_billing_address,default_shipping_address`.
+
+### Catalog recordings
+
+```sh
+curl -sg -H "X-Spree-Token: $KEY42" "$B42/api/v1/products?per_page=3&q[s]=id%20asc" > recordings/4.2/products.list.json
+curl -s  -H "X-Spree-Token: $KEY42" "$B42/api/v1/products/1"                       > recordings/4.2/products.show.json
+curl -s  -H "X-Spree-Token: $KEY42" "$B42/api/v1/users?per_page=5"                  > recordings/4.2/users.list.json
+curl -s  -H "X-Spree-Token: $KEY42" "$B42/api/v1/users/3"                           > recordings/4.2/users.show.json
+EXP=variants,option_types,media; CEXP=default_billing_address,default_shipping_address
+curl -s -H "X-Spree-Api-Key: $KEY60" "$B60/api/v3/admin/products?limit=3&sort=-created_at&expand=$EXP" > recordings/6.0/products.list.json
+curl -s -H "X-Spree-Api-Key: $KEY60" "$B60/api/v3/admin/products/prod_UkLWZg9DAJ?expand=$EXP"         > recordings/6.0/products.show.json
+curl -s -H "X-Spree-Api-Key: $KEY60" "$B60/api/v3/admin/customers?limit=3&sort=-created_at&expand=$CEXP" > recordings/6.0/customers.list.json
+curl -s -H "X-Spree-Api-Key: $KEY60" "$B60/api/v3/admin/customers/cust_YHETxCGlb0?expand=$CEXP"         > recordings/6.0/customers.show.json
+```
+
+Pretty-printed afterwards. The secret scan from §e found nothing in them.
+
+### Contract suite notes
+
+- `proves()` recorded a skipped test as `fail`, because `ctx.skip()` works by
+  throwing; that is why earlier runs showed `orders.capture` failing once no
+  pending payment was left. Fixed in `contract/env.ts`: a skip records nothing.
+- Each contract file merges its results into `contract-results/<label>.json`
+  (a failure wins); `contract/setup.ts` empties that file when a run starts.
+- The order action tests use up seeded data: each run captures one pending
+  payment, ships one fulfillment and cancels one order. After enough runs
+  `orders.capture` skips and the 6.0 "filters unpaid orders" test fails for
+  want of an unpaid order. `node scripts/spree-up.mjs all --reset` restores
+  the seed (and issues new API keys).

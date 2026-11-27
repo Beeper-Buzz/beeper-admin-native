@@ -1,0 +1,47 @@
+{
+  "users": [
+    {
+      "id": 1,
+      "email": "spree@example.com",
+      "created_at": "2026-11-26T23:35:43.230Z",
+      "updated_at": "2026-11-26T23:35:43.251Z",
+      "bill_address": null,
+      "ship_address": null
+    },
+    {
+      "id": 2,
+      "email": "admin@example.com",
+      "created_at": "2026-11-26T23:36:43.552Z",
+      "updated_at": "2026-11-26T23:36:43.573Z",
+      "bill_address": null,
+      "ship_address": null
+    },
+    {
+      "id": 3,
+      "email": "customer1@example.com",
+      "created_at": "2026-11-26T23:36:43.578Z",
+      "updated_at": "2026-11-26T23:36:43.578Z",
+      "bill_address": null,
+      "ship_address": null
+    },
+    {
+      "id": 4,
+      "email": "customer2@example.com",
+      "created_at": "2026-11-26T23:36:43.583Z",
+      "updated_at": "2026-11-26T23:36:43.583Z",
+      "bill_address": null,
+      "ship_address": null
+    },
+    {
+      "id": 5,
+      "email": "customer3@example.com",
+      "created_at": "2026-11-26T23:36:43.587Z",
+      "updated_at": "2026-11-26T23:36:43.587Z",
+      "bill_address": null,
+      "ship_address": null
+    }
+  ],
+  "count": 5,
+  "current_page": 1,
+  "pages": 2
+}

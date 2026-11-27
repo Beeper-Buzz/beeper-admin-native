@@ -49,7 +49,7 @@ const FULFILLMENT_ITEM_STATUS: Record<string, Fulfillment['status']> = {
   canceled: 'canceled',
 };
 
-function mapAddress(a: V3Address | null | undefined): Address | null {
+export function mapV3Address(a: V3Address | null | undefined): Address | null {
   if (!a) return null;
   return {
     firstName: a.first_name,
@@ -142,8 +142,8 @@ export function mapOrder(o: V3Order): Order {
     completedAt: o.completed_at,
     createdAt: o.created_at,
     updatedAt: o.updated_at,
-    billAddress: mapAddress(o.billing_address),
-    shipAddress: mapAddress(o.shipping_address),
+    billAddress: mapV3Address(o.billing_address),
+    shipAddress: mapV3Address(o.shipping_address),
     lineItems: (o.items ?? []).map(mapLineItem),
     fulfillments: (o.fulfillments ?? []).map((f) => mapFulfillment(f, c)),
     payments: (o.payments ?? []).map((p) => mapPayment(p, c)),

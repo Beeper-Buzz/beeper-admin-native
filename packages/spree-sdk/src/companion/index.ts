@@ -11,8 +11,23 @@ export interface PairingResult {
   user: { email: string | null };
 }
 
+export interface CompanionRefund {
+  id: string;
+  amount: string;
+  reason: string | null;
+  paymentNumber: string;
+}
+
 export interface CompanionPort {
   summary(): Promise<StoreSummary>;
+  refundReasons(): Promise<{ id: string; name: string }[]>;
+  /** Spree 4.2–4.3: API v1 has no working refund action. */
+  refund(input: {
+    orderNumber: string;
+    paymentNumber: string;
+    amount: string;
+    reasonId?: string | null;
+  }): Promise<CompanionRefund>;
   updateCurrentDevice(patch: { pushToken?: string | null; pushEnabled?: boolean }): Promise<void>;
 }
 
@@ -73,6 +88,25 @@ export function companion(transport: Transport): CompanionPort {
         lowStockVariants: b.low_stock_variants,
         generatedAt: b.generated_at,
       });
+    },
+    async refundReasons() {
+      const { data } = await transport.request<{ data: { id: string; name: string }[] }>({
+        path: `${BASE}/refund_reasons`,
+      });
+      return data.data;
+    },
+    async refund(input) {
+      const body: Record<string, unknown> = { amount: input.amount };
+      if (input.reasonId) body.reason_id = input.reasonId;
+      const { data } = await transport.request<{
+        refund: { id: string; amount: string; reason: string | null; payment_number: string };
+      }>({
+        method: 'POST',
+        path: `${BASE}/orders/${encodeURIComponent(input.orderNumber)}/payments/${encodeURIComponent(input.paymentNumber)}/refunds`,
+        body,
+      });
+      const r = data.refund;
+      return { id: r.id, amount: r.amount, reason: r.reason, paymentNumber: r.payment_number };
     },
     async updateCurrentDevice(patch) {
       const body: Record<string, unknown> = {};

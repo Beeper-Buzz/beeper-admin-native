@@ -127,7 +127,7 @@ export function v4PaymentStatus(state: string | null, paymentTotal: number): Ord
   }
 }
 
-function mapAddress(a: V1Address | null | undefined): Address | null {
+export function mapV1Address(a: V1Address | null | undefined): Address | null {
   if (!a) return null;
   return {
     firstName: a.firstname,
@@ -218,8 +218,8 @@ export function mapV1Order(o: V1Order): Order {
     completedAt: o.completed_at,
     createdAt: o.created_at,
     updatedAt: o.updated_at,
-    billAddress: mapAddress(o.bill_address),
-    shipAddress: mapAddress(o.ship_address),
+    billAddress: mapV1Address(o.bill_address),
+    shipAddress: mapV1Address(o.ship_address),
     lineItems,
     fulfillments,
     payments,

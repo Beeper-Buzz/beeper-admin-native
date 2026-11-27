@@ -2,12 +2,13 @@ import type { Session } from '@instincts/spree-api';
 import {
   createAdapter,
   createTransport,
+  probeStore,
   restoreAuth,
   type StoredCredential,
   type StoreProbe,
 } from '@instincts/spree-sdk';
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import { loadActiveStore, removeStore, type StoredStore, saveStore, storeIdFor } from './storage';
+import { loadActiveStore, loadStore, removeStore, type StoredStore, saveStore, storeIdFor } from './storage';
 
 type SessionState =
   | { status: 'loading'; session: null; store: null }
@@ -34,6 +35,25 @@ export function buildSession(store: StoredStore, onRotate: (c: StoredCredential)
   };
 }
 
+/**
+ * A fresh probe to adopt, or null to keep the stored one. Features follow the store (a gem
+ * install or upgrade lights up refunds, push, summaries) without reconnecting. A store that
+ * moved to another API family needs a new sign-in, so that change isn't adopted here.
+ */
+export function refreshedProbe(stored: StoreProbe, fresh: StoreProbe): StoreProbe | null {
+  if (fresh.preferredApi !== stored.preferredApi) return null;
+  const same = (a: readonly string[], b: readonly string[]) =>
+    a.length === b.length && [...a].sort().join() === [...b].sort().join();
+  const changed =
+    !same(stored.capabilities, fresh.capabilities) ||
+    !same(stored.authMethods, fresh.authMethods) ||
+    stored.gem?.version !== fresh.gem?.version ||
+    stored.spreeVersion !== fresh.spreeVersion ||
+    stored.storeName !== fresh.storeName ||
+    stored.currency !== fresh.currency;
+  return changed ? { ...fresh, baseUrl: stored.baseUrl } : null;
+}
+
 export function SessionProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<SessionState>({ status: 'loading', session: null, store: null });
 
@@ -46,9 +66,22 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     loadActiveStore()
-      .then((store) =>
-        store ? activate(store) : setState({ status: 'signedOut', session: null, store: null }),
-      )
+      .then((store) => {
+        if (!store) return setState({ status: 'signedOut', session: null, store: null });
+        activate(store);
+        // Re-check what the store supports in the background; offline or slow stores keep the stored probe.
+        probeStore({ baseUrl: store.probe.baseUrl, timeoutMs: 10_000 })
+          .then(async (fresh) => {
+            const probe = refreshedProbe(store.probe, fresh);
+            if (!probe) return;
+            // The credential may have rotated meanwhile (JWT refresh); keep the newest one.
+            const latest = (await loadStore(store.id)) ?? store;
+            const updated = { ...latest, probe };
+            await saveStore(updated, { activate: false });
+            activate(updated);
+          })
+          .catch(() => {});
+      })
       .catch(() => setState({ status: 'signedOut', session: null, store: null }));
   }, [activate]);
 
@@ -75,4 +108,11 @@ export function useSession(): SessionApi {
   const s = useContext(SessionContext);
   if (!s) throw new Error('useSession must be used inside SessionProvider');
   return s;
+}
+
+/** Whether the connected store supports a capability (`orders.refund`, `promotions.write`…). */
+export function useCan(): (capability: string) => boolean {
+  const { state } = useSession();
+  const capabilities = state.store?.probe.capabilities;
+  return (capability: string) => !!capabilities?.includes(capability as never);
 }

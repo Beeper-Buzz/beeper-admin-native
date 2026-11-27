@@ -112,7 +112,8 @@ Other details:
 are real responses captured from these stores. They are meant as test
 fixtures; FINDINGS.md §e has the exact commands. 4.2's order `token` (the
 guest-checkout token) is replaced with `[REDACTED order guest token]`. Neither
-file contains API keys.
+file contains API keys. The catalog recordings (`products.*`, 4.2 `users.*`,
+6.0 `customers.*`) are listed in FINDINGS.md §f.
 
 ## Version pins
 

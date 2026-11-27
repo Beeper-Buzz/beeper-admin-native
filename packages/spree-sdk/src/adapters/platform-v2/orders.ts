@@ -1,5 +1,5 @@
 import type { Order, OrderListFilter, Page } from '@instincts/spree-domain';
-import { SpreeError } from '../../errors';
+import { SpreeError, unsupported } from '../../errors';
 import type { ListOrdersParams, OrdersPort } from '../../ports';
 import type { QueryObject } from '../../query';
 import type { Transport } from '../../transport';
@@ -80,6 +80,24 @@ export function platformV2Orders(transport: Transport): OrdersPort {
       const [order] = mapOrderDocument(res.data);
       if (!order) throw new SpreeError({ kind: 'notFound', status: 404 });
       return order;
+    },
+
+    // Platform API v2 (Spree 4.4–5.x) has routes for these, but no store in the contract suite
+    // proves them yet (FINDINGS.md); refuse rather than guess.
+    async ship() {
+      throw unsupported('shipments.ship');
+    },
+    async capture() {
+      throw unsupported('orders.capture');
+    },
+    async cancel() {
+      throw unsupported('orders.cancel');
+    },
+    async refund() {
+      throw unsupported('orders.refund');
+    },
+    async refundReasons() {
+      throw unsupported('orders.refund');
     },
   };
 }

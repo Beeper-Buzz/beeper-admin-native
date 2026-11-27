@@ -16,6 +16,14 @@ export default function OrdersLayout() {
     >
       <Stack.Screen name="index" options={{ title: 'Orders', headerLargeTitle: true }} />
       <Stack.Screen name="[id]" options={{ title: '' }} />
+      <Stack.Screen
+        name="ship"
+        options={{ presentation: 'formSheet', sheetAllowedDetents: 'fitToContents', headerShown: false }}
+      />
+      <Stack.Screen
+        name="refund"
+        options={{ presentation: 'formSheet', sheetAllowedDetents: 'fitToContents', headerShown: false }}
+      />
     </Stack>
   );
 }

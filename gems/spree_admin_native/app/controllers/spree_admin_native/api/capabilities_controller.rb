@@ -6,7 +6,7 @@ module SpreeAdminNative
         store = Spree::Store.respond_to?(:default) ? Spree::Store.default : Spree::Store.first
         body = {
           api_families: api_families,
-          capabilities: %w[notifications.push analytics.summary] + SpreeAdminNative.config.extra_capabilities,
+          capabilities: capabilities,
           auth_methods: pairing_available? ? %w[pairing] : [],
           store: { name: store&.name, currency: store&.default_currency }
         }
@@ -18,6 +18,13 @@ module SpreeAdminNative
       end
 
       private
+
+      def capabilities
+        list = %w[notifications.push analytics.summary orders.refund]
+        # Coupon codes live on the promotion until Spree 5 moved them to their own table.
+        list += %w[promotions.read promotions.write] if Spree::Promotion.column_names.include?('code')
+        list + SpreeAdminNative.config.extra_capabilities
+      end
 
       def api_families
         {

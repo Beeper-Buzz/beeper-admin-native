@@ -7,6 +7,8 @@ module SpreeAdminNative
     attr_accessor :pairing_ttl, :low_stock_threshold, :extra_capabilities
     # Report the Spree and gem versions on the public capabilities endpoint.
     attr_accessor :expose_versions
+    # Let YAML columns load BigDecimal (Spree's decimal calculator settings). See engine.rb.
+    attr_accessor :permit_bigdecimal_yaml
 
     def initialize
       @expo_push_url = ENV.fetch('SPREE_ADMIN_NATIVE_EXPO_PUSH_URL', 'https://exp.host/--/api/v2/push/send')
@@ -15,6 +17,7 @@ module SpreeAdminNative
       @low_stock_threshold = 2
       @extra_capabilities = []
       @expose_versions = true
+      @permit_bigdecimal_yaml = true
     end
   end
 end

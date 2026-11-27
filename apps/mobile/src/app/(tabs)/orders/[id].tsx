@@ -1,10 +1,12 @@
 import { layout, radius, space } from '@instincts/spree-ui';
 import { useQuery } from '@tanstack/react-query';
-import { Stack, useLocalSearchParams } from 'expo-router';
-import { ActivityIndicator, ScrollView, StyleSheet, View } from 'react-native';
+import { router, Stack, useLocalSearchParams } from 'expo-router';
+import { ActivityIndicator, Alert, ScrollView, StyleSheet, View } from 'react-native';
 import { customerLabel, orderBadges } from '@/components/order-row';
-import { Badge, EmptyState, MoneyText, Screen, SpreeNumberText } from '@/components/primitives';
+import { Badge, Button, EmptyState, MoneyText, Screen, SpreeNumberText } from '@/components/primitives';
 import { Label, Text } from '@/components/text';
+import { useOrderMutations } from '@/orders/use-order-mutations';
+import { useCan } from '@/session/session';
 import { useTheme } from '@/theme/theme';
 import { useTRPC } from '@/trpc/trpc';
 
@@ -13,6 +15,10 @@ export default function OrderScreen() {
   const trpc = useTRPC();
   const { colors } = useTheme();
   const { data: order, error, isPending } = useQuery(trpc.orders.get.queryOptions({ id }));
+  const can = useCan();
+  const actions = useOrderMutations(id);
+  const actionError =
+    actions.capture.error?.message ?? actions.cancel.error?.message ?? actions.ship.error?.message ?? null;
 
   if (isPending)
     return (
@@ -28,6 +34,20 @@ export default function OrderScreen() {
     );
 
   const card = [styles.card, { backgroundColor: colors.surface, borderColor: colors.line }];
+  const ref = { id: order.id, number: order.number };
+  const canCancel =
+    can('orders.cancel') &&
+    order.status === 'placed' &&
+    order.fulfillments.every((f) => f.status !== 'fulfilled' && f.status !== 'delivered');
+  const confirmCancel = () =>
+    Alert.alert(
+      `Cancel ${order.number}?`,
+      'The store cancels the order and releases its stock. Captured payments are refunded or voided the way your store handles cancellations.',
+      [
+        { text: 'Keep order', style: 'cancel' },
+        { text: 'Cancel order', style: 'destructive', onPress: () => actions.cancel.mutate({ order: ref }) },
+      ],
+    );
   const address = order.shipAddress;
   return (
     <Screen>
@@ -93,11 +113,36 @@ export default function OrderScreen() {
           <View style={{ gap: space[1] }}>
             <Label>Payments</Label>
             {order.payments.map((p) => (
-              <View key={p.id} style={styles.kv}>
-                <Text>
-                  {p.sourceSummary ?? p.methodName ?? 'Payment'} · {p.status}
-                </Text>
-                <MoneyText value={p.amount} />
+              <View key={p.id} style={{ gap: space[2] }}>
+                <View style={styles.kv}>
+                  <Text style={{ flex: 1 }}>
+                    {p.sourceSummary ?? p.methodName ?? 'Payment'} · {p.status}
+                  </Text>
+                  <MoneyText value={p.amount} />
+                </View>
+                <View style={styles.actions}>
+                  {can('orders.capture') && p.status === 'pending' && p.canCapture !== false ? (
+                    <Button
+                      title="Capture"
+                      size="small"
+                      variant="tonal"
+                      loading={actions.capture.isPending && actions.capture.variables?.payment.id === p.id}
+                      onPress={() =>
+                        actions.capture.mutate({ order: ref, payment: { id: p.id, number: p.number } })
+                      }
+                    />
+                  ) : null}
+                  {can('orders.refund') && p.status === 'completed' ? (
+                    <Button
+                      title="Refund"
+                      size="small"
+                      variant="tonal"
+                      onPress={() =>
+                        router.push({ pathname: '/orders/refund', params: { id, payment: p.id } })
+                      }
+                    />
+                  ) : null}
+                </View>
               </View>
             ))}
           </View>
@@ -107,18 +152,46 @@ export default function OrderScreen() {
           <View style={{ gap: space[1] }}>
             <Label>Shipments</Label>
             {order.fulfillments.map((s) => (
-              <View key={s.id} style={styles.kv}>
-                <SpreeNumberText value={s.number} />
-                <Text tone="muted">
-                  {[s.methodName, s.status, s.trackingNumber].filter(Boolean).join(' · ')}
-                </Text>
+              <View key={s.id} style={{ gap: space[2] }}>
+                <View style={styles.kv}>
+                  <SpreeNumberText value={s.number} />
+                  <Text tone="muted" style={{ flexShrink: 1, textAlign: 'right' }}>
+                    {[s.methodName, s.status, s.trackingNumber].filter(Boolean).join(' · ')}
+                  </Text>
+                </View>
+                {can('shipments.ship') && s.status === 'ready' ? (
+                  <View style={styles.actions}>
+                    <Button
+                      title="Mark shipped"
+                      size="small"
+                      variant="tonal"
+                      onPress={() =>
+                        router.push({ pathname: '/orders/ship', params: { id, fulfillment: s.id } })
+                      }
+                    />
+                  </View>
+                ) : can('shipments.ship') && s.status === 'pending' && order.status === 'placed' ? (
+                  <Text size="footnote" tone="muted">
+                    Ships once the order is paid.
+                  </Text>
+                ) : null}
               </View>
             ))}
           </View>
         ) : null}
-        <Text size="footnote" tone="muted">
-          Fulfil, capture and refund arrive in v0.1.
-        </Text>
+        {actionError ? (
+          <Text size="footnote" tone="critical" accessibilityLiveRegion="polite">
+            {actionError}
+          </Text>
+        ) : null}
+        {canCancel ? (
+          <Button
+            title="Cancel order"
+            variant="destructive"
+            loading={actions.cancel.isPending}
+            onPress={confirmCancel}
+          />
+        ) : null}
       </ScrollView>
     </Screen>
   );
@@ -128,4 +201,5 @@ const styles = StyleSheet.create({
   card: { borderWidth: StyleSheet.hairlineWidth, borderRadius: radius.card, overflow: 'hidden' },
   line: { flexDirection: 'row', gap: space[3], padding: space[3], alignItems: 'center' },
   kv: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: space[3] },
+  actions: { flexDirection: 'row', gap: space[2], flexWrap: 'wrap' },
 });

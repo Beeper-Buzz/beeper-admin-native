@@ -48,6 +48,7 @@ class SpreeAdminNativeIntegrationTest < Minitest::Test
     assert_equal 200, last_response.status
     assert_includes json['api_families'], 'api-v1'
     assert_includes json['capabilities'], 'notifications.push'
+    %w[orders.refund promotions.read promotions.write].each { |c| assert_includes json['capabilities'], c }
     assert_includes json['auth_methods'], 'pairing'
     assert_equal SpreeAdminNative::VERSION, json['gem_version']
   end
@@ -188,5 +189,140 @@ class SpreeAdminNativeIntegrationTest < Minitest::Test
   ensure
     SpreeAdminNative.config.expo_push_url = previous
     server&.close
+  end
+
+  # --- 0.2: refunds -----------------------------------------------------------------------
+
+  def refundable_payment
+    Spree::Payment.where(state: 'completed').detect { |p| p.credit_allowed >= 2 } || raise('seed a paid order first')
+  end
+
+  def json_post(path, body)
+    post path, body.to_json, 'CONTENT_TYPE' => 'application/json'
+  end
+
+  def test_refund_reasons_need_an_admin
+    get '/api/admin_native/v1/refund_reasons'
+    assert_equal 401, last_response.status
+    header 'X-Spree-Token', pair!
+    get '/api/admin_native/v1/refund_reasons'
+    assert_equal 200, last_response.status
+    assert(json['data'].any? { |r| r['name'] == 'Return processing' })
+  end
+
+  def test_partial_refund_credits_the_payment_and_updates_the_order
+    payment = refundable_payment
+    before = payment.credit_allowed
+    header 'X-Spree-Token', pair!
+    json_post "/api/admin_native/v1/orders/#{payment.order.number}/payments/#{payment.number}/refunds", amount: '1.00'
+    assert_equal 201, last_response.status, last_response.body
+    assert_equal '1.0', json.dig('refund', 'amount')
+    assert_equal payment.number, json.dig('refund', 'payment_number')
+    assert_equal 'Return processing', json.dig('refund', 'reason')
+    assert_equal before - 1, payment.reload.credit_allowed
+    assert_equal payment.order.reload.payment_state, json.dig('order', 'payment_state')
+  end
+
+  def test_refund_over_the_paid_amount_is_refused
+    payment = refundable_payment
+    header 'X-Spree-Token', pair!
+    json_post "/api/admin_native/v1/orders/#{payment.order.number}/payments/#{payment.number}/refunds",
+              amount: (payment.credit_allowed + 1).to_s
+    assert_equal 422, last_response.status
+    assert_equal 'invalid', json.dig('error', 'code')
+    assert_equal 0, payment.refunds.count
+  end
+
+  def test_refund_needs_an_amount_and_a_known_payment
+    payment = refundable_payment
+    header 'X-Spree-Token', pair!
+    json_post "/api/admin_native/v1/orders/#{payment.order.number}/payments/#{payment.number}/refunds", {}
+    assert_equal 422, last_response.status
+    json_post "/api/admin_native/v1/orders/#{payment.order.number}/payments/NOPE/refunds", amount: '1'
+    assert_equal 404, last_response.status
+  end
+
+  def test_refund_uses_a_chosen_reason
+    payment = refundable_payment
+    reason = Spree::RefundReason.create!(name: 'Damaged in transit')
+    header 'X-Spree-Token', pair!
+    json_post "/api/admin_native/v1/orders/#{payment.order.number}/payments/#{payment.number}/refunds",
+              amount: '1', reason_id: reason.id.to_s
+    assert_equal 201, last_response.status, last_response.body
+    assert_equal 'Damaged in transit', json.dig('refund', 'reason')
+  end
+
+  # --- 0.2: promotions --------------------------------------------------------------------
+
+  def test_promotions_need_an_admin
+    get '/api/admin_native/v1/promotions'
+    assert_equal 401, last_response.status
+  end
+
+  def test_create_a_percent_coupon_then_list_and_find_it
+    header 'X-Spree-Token', pair!
+    json_post '/api/admin_native/v1/promotions',
+              name: 'Spring sale', code: 'SPRING20', discount: { type: 'percent', amount: '20' }
+    assert_equal 201, last_response.status, last_response.body
+    created = json['data']
+    assert_equal 'SPRING20', created['code']
+    assert_equal 'active', created['status']
+    assert_equal({ 'type' => 'percent', 'amount' => '20.0' }, created['discount'])
+    assert created['editable_discount']
+    assert Spree::Promotion.with_coupon_code('spring20')
+
+    get '/api/admin_native/v1/promotions', q: 'spring', per_page: 5
+    assert_equal 200, last_response.status
+    assert_equal [created['id']], json['data'].map { |p| p['id'] } & [created['id']]
+    assert json.dig('meta', 'total_count') >= 1
+
+    get "/api/admin_native/v1/promotions/#{created['id']}"
+    assert_equal 'Spring sale', json.dig('data', 'name')
+  end
+
+  def test_update_switches_to_a_fixed_discount_and_expires
+    header 'X-Spree-Token', pair!
+    json_post '/api/admin_native/v1/promotions', name: 'Ten off', code: 'TENOFF', discount: { type: 'percent', amount: '10' }
+    id = json.dig('data', 'id')
+    patch "/api/admin_native/v1/promotions/#{id}",
+          { discount: { type: 'fixed', amount: '5' }, expires_at: 1.minute.ago.iso8601 }.to_json,
+          'CONTENT_TYPE' => 'application/json'
+    assert_equal 200, last_response.status, last_response.body
+    assert_equal 'fixed', json.dig('data', 'discount', 'type')
+    assert_equal '5.0', json.dig('data', 'discount', 'amount')
+    assert_equal 'expired', json.dig('data', 'status')
+    assert_equal 1, Spree::Promotion.find(id).promotion_actions.count
+
+    get '/api/admin_native/v1/promotions', status: 'expired'
+    assert_includes json['data'].map { |p| p['id'] }, id
+    get '/api/admin_native/v1/promotions', status: 'active'
+    refute_includes json['data'].map { |p| p['id'] }, id
+  end
+
+  def test_invalid_promotions_are_refused_without_saving
+    header 'X-Spree-Token', pair!
+    count = Spree::Promotion.count
+    json_post '/api/admin_native/v1/promotions', name: 'Bad', code: 'BAD', discount: { type: 'percent', amount: '150' }
+    assert_equal 422, last_response.status
+    json_post '/api/admin_native/v1/promotions', name: 'Bad', code: 'BAD', discount: { type: 'bogo', amount: '1' }
+    assert_equal 422, last_response.status
+    json_post '/api/admin_native/v1/promotions', name: '', code: 'BAD', discount: { type: 'fixed', amount: '1' }
+    assert_equal 422, last_response.status
+    assert_equal count, Spree::Promotion.count
+  end
+
+  def test_promotions_with_other_actions_keep_their_discount
+    promotion = Spree::Promotion.create!(name: 'Free shipping')
+    Spree::Promotion::Actions::FreeShipping.create!(promotion: promotion)
+    header 'X-Spree-Token', pair!
+    get "/api/admin_native/v1/promotions/#{promotion.id}"
+    refute json.dig('data', 'editable_discount')
+    patch "/api/admin_native/v1/promotions/#{promotion.id}", { discount: { type: 'fixed', amount: '5' } }.to_json,
+          'CONTENT_TYPE' => 'application/json'
+    assert_equal 422, last_response.status
+    patch "/api/admin_native/v1/promotions/#{promotion.id}", { name: 'Free shipping weekend' }.to_json,
+          'CONTENT_TYPE' => 'application/json'
+    assert_equal 200, last_response.status
+    assert_equal 'Free shipping weekend', json.dig('data', 'name')
   end
 end

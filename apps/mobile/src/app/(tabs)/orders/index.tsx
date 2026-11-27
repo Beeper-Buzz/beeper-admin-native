@@ -1,13 +1,12 @@
 import type { OrderListFilter } from '@instincts/spree-domain';
-import { layout, radius, space } from '@instincts/spree-ui';
+import { space } from '@instincts/spree-ui';
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { ActivityIndicator, FlatList, Pressable, RefreshControl, ScrollView, View } from 'react-native';
+import { ActivityIndicator, FlatList, RefreshControl, View } from 'react-native';
+import { FilterChips } from '@/components/filter-chips';
 import { OrderRow } from '@/components/order-row';
 import { EmptyState, Screen } from '@/components/primitives';
-import { Text } from '@/components/text';
-import { useTheme } from '@/theme/theme';
 import { useTRPC } from '@/trpc/trpc';
 
 const FILTERS: [OrderListFilter, string][] = [
@@ -26,7 +25,6 @@ const EMPTY: Record<OrderListFilter, [string, string]> = {
 
 export default function OrdersScreen() {
   const trpc = useTRPC();
-  const { colors } = useTheme();
   const [filter, setFilter] = useState<OrderListFilter>('unfulfilled');
   const query = useInfiniteQuery(
     trpc.orders.list.infiniteQueryOptions(
@@ -46,42 +44,12 @@ export default function OrdersScreen() {
           <OrderRow order={item} onPress={() => router.push(`/orders/${item.number}`)} />
         )}
         ListHeaderComponent={
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={{
-              gap: space[2],
-              paddingHorizontal: layout.gutter,
-              paddingVertical: space[3],
-            }}
-          >
-            {FILTERS.map(([key, label]) => {
-              const on = key === filter;
-              return (
-                <Pressable
-                  key={key}
-                  accessibilityRole="tab"
-                  accessibilityState={{ selected: on }}
-                  onPress={() => setFilter(key)}
-                  style={{
-                    paddingHorizontal: space[3],
-                    paddingVertical: 6,
-                    borderRadius: radius.pill,
-                    borderWidth: 1,
-                    borderColor: on ? colors.ink : colors.line,
-                    backgroundColor: on ? colors.ink : colors.surface,
-                  }}
-                >
-                  <Text size="footnote" font="uiMedium" style={{ color: on ? colors.bg : colors.ink }}>
-                    {label}
-                    {on && query.data?.pages[0]?.totalCount !== undefined
-                      ? ` ${query.data.pages[0].totalCount}`
-                      : ''}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </ScrollView>
+          <FilterChips
+            options={FILTERS}
+            value={filter}
+            onChange={setFilter}
+            count={query.data?.pages[0]?.totalCount}
+          />
         }
         ListEmptyComponent={
           query.isPending ? (

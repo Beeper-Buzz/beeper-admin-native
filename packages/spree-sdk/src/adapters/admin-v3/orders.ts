@@ -30,8 +30,14 @@ export const V3_FILTERS: Record<OrderListFilter, QueryObject> = {
   },
 };
 
+const enc = encodeURIComponent;
+
 export function adminV3Orders(transport: Transport): OrdersPort {
-  return {
+  /** Actions address orders by prefixed id (`or_…`); look it up when only the number is known. */
+  const orderId = async (order: { id: string; number: string }) =>
+    order.id.includes('_') ? order.id : (await port.get(order.number)).id;
+
+  const port: OrdersPort = {
     async list(params: ListOrdersParams): Promise<Page<ReturnType<typeof mapOrder>>> {
       const q: Record<string, unknown> = { ...V3_FILTERS[params.filter] };
       if (params.query) q.search = params.query;
@@ -71,5 +77,48 @@ export function adminV3Orders(transport: Transport): OrdersPort {
       });
       return mapOrder(res.data);
     },
+
+    async ship(order, fulfillment, input) {
+      const id = await orderId(order);
+      const tracking = input?.tracking?.trim();
+      await transport.request({
+        method: 'PATCH',
+        path: `${BASE}/${enc(id)}/fulfillments/${enc(fulfillment.id)}/fulfill`,
+        body: tracking ? { tracking } : {},
+      });
+      return port.get(id);
+    },
+
+    async capture(order, payment) {
+      const id = await orderId(order);
+      await transport.request({
+        method: 'PATCH',
+        path: `${BASE}/${enc(id)}/payments/${enc(payment.id)}/capture`,
+      });
+      return port.get(id);
+    },
+
+    async cancel(order) {
+      const id = await orderId(order);
+      await transport.request({ method: 'PATCH', path: `${BASE}/${enc(id)}/cancel` });
+      return port.get(id);
+    },
+
+    async refund(order, input) {
+      const id = await orderId(order);
+      const body: Record<string, unknown> = { payment_id: input.payment.id, amount: input.amount };
+      if (input.reasonId) body.refund_reason_id = input.reasonId;
+      await transport.request({ method: 'POST', path: `${BASE}/${enc(id)}/refunds`, body });
+      return port.get(id);
+    },
+
+    async refundReasons() {
+      const res = await transport.request<PaginatedResponse<{ id: string; name: string }>>({
+        path: '/api/v3/admin/refund_reasons',
+        query: { limit: 100 },
+      });
+      return res.data.data.map((r) => ({ id: r.id, name: r.name }));
+    },
   };
+  return port;
 }

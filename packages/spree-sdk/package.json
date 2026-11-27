@@ -1,7 +1,7 @@
 {
   "name": "@instincts/spree-sdk",
   "version": "0.1.0",
-  "description": "Version-adaptive Spree Commerce client for Spree 4.2 to 6.x: transport, errors, retries, store detection, sign-in and order adapters.",
+  "description": "Version-adaptive Spree Commerce client for Spree 4.2 to 6.x: transport, errors, retries, store detection, sign-in, and order, product and customer adapters.",
   "keywords": [
     "spree",
     "spree-commerce",

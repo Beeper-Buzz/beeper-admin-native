@@ -5,4 +5,5 @@ export * from './customer';
 export * from './money';
 export * from './order';
 export * from './product';
+export * from './promotion';
 export * from './summary';

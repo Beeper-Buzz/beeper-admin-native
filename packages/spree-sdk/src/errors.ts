@@ -165,3 +165,12 @@ export function parseRetryAfter(
   const date = Date.parse(trimmed);
   return Number.isNaN(date) ? undefined : Math.max(0, date - now);
 }
+
+/** For an action this store's API can't do. */
+export function unsupported(capability: string): SpreeError {
+  return new SpreeError({
+    kind: 'capability',
+    status: 0,
+    message: `This store's API can't do ${capability}.`,
+  });
+}

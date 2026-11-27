@@ -4,6 +4,15 @@ import { requireCapability, router } from '../trpc';
 
 const readOrders = requireCapability('orders.read');
 
+const OrderRef = z.object({ id: z.string().min(1), number: z.string().min(1) });
+const Ref = z.object({ id: z.string().min(1), number: z.string().min(1) });
+/** Positive decimal string with at most two places, e.g. "12.50". */
+const Amount = z
+  .string()
+  .trim()
+  .regex(/^\d+(\.\d{1,2})?$/, 'Enter an amount like 12.50.')
+  .refine((v) => Number(v) > 0, 'Enter an amount more than 0.');
+
 export const ordersRouter = router({
   list: readOrders
     .input(
@@ -26,4 +35,28 @@ export const ordersRouter = router({
   get: readOrders
     .input(z.object({ id: z.string().min(1) }))
     .query(({ ctx, input }) => ctx.session.adapter.orders.get(input.id)),
+
+  ship: requireCapability('shipments.ship')
+    .input(z.object({ order: OrderRef, fulfillment: Ref, tracking: z.string().trim().max(500).nullish() }))
+    .mutation(({ ctx, input }) =>
+      ctx.session.adapter.orders.ship(input.order, input.fulfillment, { tracking: input.tracking || null }),
+    ),
+  capture: requireCapability('orders.capture')
+    .input(z.object({ order: OrderRef, payment: Ref }))
+    .mutation(({ ctx, input }) => ctx.session.adapter.orders.capture(input.order, input.payment)),
+  cancel: requireCapability('orders.cancel')
+    .input(z.object({ order: OrderRef }))
+    .mutation(({ ctx, input }) => ctx.session.adapter.orders.cancel(input.order)),
+  refund: requireCapability('orders.refund')
+    .input(z.object({ order: OrderRef, payment: Ref, amount: Amount, reasonId: z.string().nullish() }))
+    .mutation(({ ctx, input }) =>
+      ctx.session.adapter.orders.refund(input.order, {
+        payment: input.payment,
+        amount: input.amount,
+        reasonId: input.reasonId ?? null,
+      }),
+    ),
+  refundReasons: requireCapability('orders.refund').query(({ ctx }) =>
+    ctx.session.adapter.orders.refundReasons(),
+  ),
 });

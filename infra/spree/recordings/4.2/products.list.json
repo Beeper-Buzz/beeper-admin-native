@@ -1,0 +1,750 @@
+{
+  "products": [
+    {
+      "id": 1,
+      "name": "Denim Shirt",
+      "description": "Dicta iste commodi iusto nam dolores. Reiciendis sint animi labore deleniti blanditiis quasi. Molestiae occaecati cum asperiores reprehenderit repellendus. Inventore ut aut accusamus quod placeat quia eligendi. Voluptate ad ducimus iusto nobis cum.",
+      "price": "69.99",
+      "display_price": "$69.99",
+      "available_on": "2026-11-26T23:35:48.658Z",
+      "slug": "denim-shirt",
+      "meta_description": null,
+      "meta_keywords": null,
+      "shipping_category_id": 1,
+      "taxon_ids": [
+        2,
+        5
+      ],
+      "total_on_hand": 35,
+      "master": {
+        "id": 1,
+        "name": "Denim Shirt",
+        "sku": "Shirts_denimshirt_69.99",
+        "price": "69.99",
+        "weight": "0.0",
+        "height": null,
+        "width": null,
+        "depth": null,
+        "is_master": true,
+        "slug": "denim-shirt",
+        "description": "Dicta iste commodi iusto nam dolores. Reiciendis sint animi labore deleniti blanditiis quasi. Molestiae occaecati cum asperiores reprehenderit repellendus. Inventore ut aut accusamus quod placeat quia eligendi. Voluptate ad ducimus iusto nobis cum.",
+        "track_inventory": true,
+        "cost_price": null,
+        "option_values": [],
+        "images": [],
+        "display_price": "$69.99",
+        "options_text": "",
+        "in_stock": true,
+        "is_backorderable": true,
+        "is_orderable": true,
+        "total_on_hand": 2,
+        "is_destroyed": false
+      },
+      "variants": [
+        {
+          "id": 117,
+          "name": "Denim Shirt",
+          "sku": "Shirts_denimshirt_69.99_blue_xs",
+          "price": "69.99",
+          "weight": "0.0",
+          "height": null,
+          "width": null,
+          "depth": null,
+          "is_master": false,
+          "slug": "denim-shirt",
+          "description": "Dicta iste commodi iusto nam dolores. Reiciendis sint animi labore deleniti blanditiis quasi. Molestiae occaecati cum asperiores reprehenderit repellendus. Inventore ut aut accusamus quod placeat quia eligendi. Voluptate ad ducimus iusto nobis cum.",
+          "track_inventory": true,
+          "cost_price": "69.99",
+          "option_values": [
+            {
+              "id": 12,
+              "name": "blue",
+              "presentation": "#0000FF",
+              "option_type_name": "color",
+              "option_type_id": 1,
+              "option_type_presentation": "Color"
+            },
+            {
+              "id": 23,
+              "name": "xs",
+              "presentation": "XS",
+              "option_type_name": "size",
+              "option_type_id": 3,
+              "option_type_presentation": "Size"
+            }
+          ],
+          "images": [],
+          "display_price": "$69.99",
+          "options_text": "Color: blue, Size: XS",
+          "in_stock": true,
+          "is_backorderable": true,
+          "is_orderable": true,
+          "total_on_hand": 33,
+          "is_destroyed": false
+        }
+      ],
+      "option_types": [
+        {
+          "id": 1,
+          "name": "color",
+          "presentation": "Color",
+          "position": 1
+        },
+        {
+          "id": 3,
+          "name": "size",
+          "presentation": "Size",
+          "position": 3
+        }
+      ],
+      "product_properties": [
+        {
+          "id": 137,
+          "product_id": 1,
+          "property_id": 9,
+          "value": "Men",
+          "property_name": "type"
+        },
+        {
+          "id": 138,
+          "product_id": 1,
+          "property_id": 10,
+          "value": "Men",
+          "property_name": "collection"
+        },
+        {
+          "id": 139,
+          "product_id": 1,
+          "property_id": 1,
+          "value": "Jerseys",
+          "property_name": "manufacturer"
+        },
+        {
+          "id": 140,
+          "product_id": 1,
+          "property_id": 2,
+          "value": "Zeta",
+          "property_name": "brand"
+        },
+        {
+          "id": 141,
+          "product_id": 1,
+          "property_id": 6,
+          "value": "90% Cotton 10% Elastan",
+          "property_name": "material"
+        },
+        {
+          "id": 142,
+          "product_id": 1,
+          "property_id": 7,
+          "value": "Form",
+          "property_name": "fit"
+        },
+        {
+          "id": 143,
+          "product_id": 1,
+          "property_id": 8,
+          "value": "Men's",
+          "property_name": "gender"
+        },
+        {
+          "id": 144,
+          "product_id": 1,
+          "property_id": 3,
+          "value": "Shirts_denimshirt_69.99",
+          "property_name": "model"
+        }
+      ],
+      "classifications": [
+        {
+          "taxon_id": 2,
+          "position": 1,
+          "taxon": {
+            "id": 2,
+            "name": "Men",
+            "pretty_name": "Categories -> Men",
+            "permalink": "men",
+            "parent_id": 1,
+            "taxonomy_id": 1,
+            "meta_title": null,
+            "meta_description": null,
+            "taxons": [
+              {
+                "id": 5,
+                "name": "Shirts",
+                "pretty_name": "Categories -> Men -> Shirts",
+                "permalink": "men/shirts",
+                "parent_id": 2,
+                "taxonomy_id": 1,
+                "meta_title": null,
+                "meta_description": null
+              },
+              {
+                "id": 6,
+                "name": "T-shirts",
+                "pretty_name": "Categories -> Men -> T-shirts",
+                "permalink": "men/t-shirts",
+                "parent_id": 2,
+                "taxonomy_id": 1,
+                "meta_title": null,
+                "meta_description": null
+              },
+              {
+                "id": 7,
+                "name": "Sweaters",
+                "pretty_name": "Categories -> Men -> Sweaters",
+                "permalink": "men/sweaters",
+                "parent_id": 2,
+                "taxonomy_id": 1,
+                "meta_title": null,
+                "meta_description": null
+              },
+              {
+                "id": 8,
+                "name": "Jackets and Coats",
+                "pretty_name": "Categories -> Men -> Jackets and Coats",
+                "permalink": "men/jackets-and-coats",
+                "parent_id": 2,
+                "taxonomy_id": 1,
+                "meta_title": null,
+                "meta_description": null
+              }
+            ]
+          }
+        },
+        {
+          "taxon_id": 5,
+          "position": 1,
+          "taxon": {
+            "id": 5,
+            "name": "Shirts",
+            "pretty_name": "Categories -> Men -> Shirts",
+            "permalink": "men/shirts",
+            "parent_id": 2,
+            "taxonomy_id": 1,
+            "meta_title": null,
+            "meta_description": null,
+            "taxons": []
+          }
+        }
+      ],
+      "has_variants": true,
+      "display_current_currency_price": "$69.99"
+    },
+    {
+      "id": 2,
+      "name": "Checked Shirt",
+      "description": "At repellat deserunt totam hic quae animi fugiat assumenda. Dignissimos est debitis voluptates hic blanditiis fugit. Minima quo qui ab rem veritatis molestiae cum nobis. Labore pariatur similique explicabo eius suscipit vero. Ipsa impedit explicabo laudantium possimus deleniti voluptatibus quisquam ullam.",
+      "price": "62.99",
+      "display_price": "$62.99",
+      "available_on": "2026-11-26T23:35:48.835Z",
+      "slug": "checked-shirt",
+      "meta_description": null,
+      "meta_keywords": null,
+      "shipping_category_id": 1,
+      "taxon_ids": [
+        2,
+        5,
+        19
+      ],
+      "total_on_hand": 41,
+      "master": {
+        "id": 2,
+        "name": "Checked Shirt",
+        "sku": "Shirts_checkedshirt_62.99",
+        "price": "62.99",
+        "weight": "0.0",
+        "height": null,
+        "width": null,
+        "depth": null,
+        "is_master": true,
+        "slug": "checked-shirt",
+        "description": "At repellat deserunt totam hic quae animi fugiat assumenda. Dignissimos est debitis voluptates hic blanditiis fugit. Minima quo qui ab rem veritatis molestiae cum nobis. Labore pariatur similique explicabo eius suscipit vero. Ipsa impedit explicabo laudantium possimus deleniti voluptatibus quisquam ullam.",
+        "track_inventory": true,
+        "cost_price": null,
+        "option_values": [],
+        "images": [],
+        "display_price": "$62.99",
+        "options_text": "",
+        "in_stock": true,
+        "is_backorderable": true,
+        "is_orderable": true,
+        "total_on_hand": 2,
+        "is_destroyed": false
+      },
+      "variants": [
+        {
+          "id": 118,
+          "name": "Checked Shirt",
+          "sku": "Shirts_checkedshirt_62.99_red_xs",
+          "price": "62.99",
+          "weight": "0.0",
+          "height": null,
+          "width": null,
+          "depth": null,
+          "is_master": false,
+          "slug": "checked-shirt",
+          "description": "At repellat deserunt totam hic quae animi fugiat assumenda. Dignissimos est debitis voluptates hic blanditiis fugit. Minima quo qui ab rem veritatis molestiae cum nobis. Labore pariatur similique explicabo eius suscipit vero. Ipsa impedit explicabo laudantium possimus deleniti voluptatibus quisquam ullam.",
+          "track_inventory": true,
+          "cost_price": "62.99",
+          "option_values": [
+            {
+              "id": 3,
+              "name": "red",
+              "presentation": "#FF0000",
+              "option_type_name": "color",
+              "option_type_id": 1,
+              "option_type_presentation": "Color"
+            },
+            {
+              "id": 23,
+              "name": "xs",
+              "presentation": "XS",
+              "option_type_name": "size",
+              "option_type_id": 3,
+              "option_type_presentation": "Size"
+            }
+          ],
+          "images": [],
+          "display_price": "$62.99",
+          "options_text": "Color: red, Size: XS",
+          "in_stock": true,
+          "is_backorderable": true,
+          "is_orderable": true,
+          "total_on_hand": 39,
+          "is_destroyed": false
+        }
+      ],
+      "option_types": [
+        {
+          "id": 1,
+          "name": "color",
+          "presentation": "Color",
+          "position": 1
+        },
+        {
+          "id": 3,
+          "name": "size",
+          "presentation": "Size",
+          "position": 3
+        }
+      ],
+      "product_properties": [
+        {
+          "id": 795,
+          "product_id": 2,
+          "property_id": 9,
+          "value": "Men",
+          "property_name": "type"
+        },
+        {
+          "id": 796,
+          "product_id": 2,
+          "property_id": 10,
+          "value": "Men",
+          "property_name": "collection"
+        },
+        {
+          "id": 797,
+          "product_id": 2,
+          "property_id": 1,
+          "value": "Wannabe",
+          "property_name": "manufacturer"
+        },
+        {
+          "id": 798,
+          "product_id": 2,
+          "property_id": 2,
+          "value": "Beta",
+          "property_name": "brand"
+        },
+        {
+          "id": 799,
+          "product_id": 2,
+          "property_id": 6,
+          "value": "10% Cotton 90% Elastan",
+          "property_name": "material"
+        },
+        {
+          "id": 800,
+          "product_id": 2,
+          "property_id": 7,
+          "value": "Form",
+          "property_name": "fit"
+        },
+        {
+          "id": 801,
+          "product_id": 2,
+          "property_id": 8,
+          "value": "Men's",
+          "property_name": "gender"
+        },
+        {
+          "id": 802,
+          "product_id": 2,
+          "property_id": 3,
+          "value": "Shirts_checkedshirt_62.99",
+          "property_name": "model"
+        }
+      ],
+      "classifications": [
+        {
+          "taxon_id": 2,
+          "position": 2,
+          "taxon": {
+            "id": 2,
+            "name": "Men",
+            "pretty_name": "Categories -> Men",
+            "permalink": "men",
+            "parent_id": 1,
+            "taxonomy_id": 1,
+            "meta_title": null,
+            "meta_description": null,
+            "taxons": [
+              {
+                "id": 5,
+                "name": "Shirts",
+                "pretty_name": "Categories -> Men -> Shirts",
+                "permalink": "men/shirts",
+                "parent_id": 2,
+                "taxonomy_id": 1,
+                "meta_title": null,
+                "meta_description": null
+              },
+              {
+                "id": 6,
+                "name": "T-shirts",
+                "pretty_name": "Categories -> Men -> T-shirts",
+                "permalink": "men/t-shirts",
+                "parent_id": 2,
+                "taxonomy_id": 1,
+                "meta_title": null,
+                "meta_description": null
+              },
+              {
+                "id": 7,
+                "name": "Sweaters",
+                "pretty_name": "Categories -> Men -> Sweaters",
+                "permalink": "men/sweaters",
+                "parent_id": 2,
+                "taxonomy_id": 1,
+                "meta_title": null,
+                "meta_description": null
+              },
+              {
+                "id": 8,
+                "name": "Jackets and Coats",
+                "pretty_name": "Categories -> Men -> Jackets and Coats",
+                "permalink": "men/jackets-and-coats",
+                "parent_id": 2,
+                "taxonomy_id": 1,
+                "meta_title": null,
+                "meta_description": null
+              }
+            ]
+          }
+        },
+        {
+          "taxon_id": 5,
+          "position": 2,
+          "taxon": {
+            "id": 5,
+            "name": "Shirts",
+            "pretty_name": "Categories -> Men -> Shirts",
+            "permalink": "men/shirts",
+            "parent_id": 2,
+            "taxonomy_id": 1,
+            "meta_title": null,
+            "meta_description": null,
+            "taxons": []
+          }
+        },
+        {
+          "taxon_id": 19,
+          "position": 15,
+          "taxon": {
+            "id": 19,
+            "name": "Bestsellers",
+            "pretty_name": "Categories -> Bestsellers",
+            "permalink": "bestsellers",
+            "parent_id": 1,
+            "taxonomy_id": 1,
+            "meta_title": null,
+            "meta_description": null,
+            "taxons": []
+          }
+        }
+      ],
+      "has_variants": true,
+      "display_current_currency_price": "$62.99"
+    },
+    {
+      "id": 3,
+      "name": "Covered Placket Shirt",
+      "description": "Et voluptatem voluptates vero possimus dolor. Quidem quibusdam similique alias a totam. Fuga eveniet voluptatem sapiente fugit exercitationem id debitis modi. Reiciendis ipsam provident tenetur sunt quasi.",
+      "price": "35.99",
+      "display_price": "$35.99",
+      "available_on": "2026-11-26T23:35:48.918Z",
+      "slug": "covered-placket-shirt",
+      "meta_description": null,
+      "meta_keywords": null,
+      "shipping_category_id": 1,
+      "taxon_ids": [
+        2,
+        5,
+        20,
+        18
+      ],
+      "total_on_hand": 23,
+      "master": {
+        "id": 3,
+        "name": "Covered Placket Shirt",
+        "sku": "Shirts_coveredplacketshirt_35.99",
+        "price": "35.99",
+        "weight": "0.0",
+        "height": null,
+        "width": null,
+        "depth": null,
+        "is_master": true,
+        "slug": "covered-placket-shirt",
+        "description": "Et voluptatem voluptates vero possimus dolor. Quidem quibusdam similique alias a totam. Fuga eveniet voluptatem sapiente fugit exercitationem id debitis modi. Reiciendis ipsam provident tenetur sunt quasi.",
+        "track_inventory": true,
+        "cost_price": null,
+        "option_values": [],
+        "images": [],
+        "display_price": "$35.99",
+        "options_text": "",
+        "in_stock": false,
+        "is_backorderable": true,
+        "is_orderable": true,
+        "total_on_hand": 0,
+        "is_destroyed": false
+      },
+      "variants": [
+        {
+          "id": 119,
+          "name": "Covered Placket Shirt",
+          "sku": "Shirts_coveredplacketshirt_35.99_dark_blue_xs",
+          "price": "35.99",
+          "weight": "0.0",
+          "height": null,
+          "width": null,
+          "depth": null,
+          "is_master": false,
+          "slug": "covered-placket-shirt",
+          "description": "Et voluptatem voluptates vero possimus dolor. Quidem quibusdam similique alias a totam. Fuga eveniet voluptatem sapiente fugit exercitationem id debitis modi. Reiciendis ipsam provident tenetur sunt quasi.",
+          "track_inventory": true,
+          "cost_price": "35.99",
+          "option_values": [
+            {
+              "id": 13,
+              "name": "dark_blue",
+              "presentation": "#00008b",
+              "option_type_name": "color",
+              "option_type_id": 1,
+              "option_type_presentation": "Color"
+            },
+            {
+              "id": 23,
+              "name": "xs",
+              "presentation": "XS",
+              "option_type_name": "size",
+              "option_type_id": 3,
+              "option_type_presentation": "Size"
+            }
+          ],
+          "images": [],
+          "display_price": "$35.99",
+          "options_text": "Color: dark_blue, Size: XS",
+          "in_stock": true,
+          "is_backorderable": true,
+          "is_orderable": true,
+          "total_on_hand": 23,
+          "is_destroyed": false
+        }
+      ],
+      "option_types": [
+        {
+          "id": 1,
+          "name": "color",
+          "presentation": "Color",
+          "position": 1
+        },
+        {
+          "id": 3,
+          "name": "size",
+          "presentation": "Size",
+          "position": 3
+        }
+      ],
+      "product_properties": [
+        {
+          "id": 145,
+          "product_id": 3,
+          "property_id": 9,
+          "value": "Men",
+          "property_name": "type"
+        },
+        {
+          "id": 146,
+          "product_id": 3,
+          "property_id": 10,
+          "value": "Men",
+          "property_name": "collection"
+        },
+        {
+          "id": 147,
+          "product_id": 3,
+          "property_id": 1,
+          "value": "Resiliance",
+          "property_name": "manufacturer"
+        },
+        {
+          "id": 148,
+          "product_id": 3,
+          "property_id": 2,
+          "value": "Delta",
+          "property_name": "brand"
+        },
+        {
+          "id": 149,
+          "product_id": 3,
+          "property_id": 6,
+          "value": "10% Cotton 90% Elastan",
+          "property_name": "material"
+        },
+        {
+          "id": 150,
+          "product_id": 3,
+          "property_id": 7,
+          "value": "Lose",
+          "property_name": "fit"
+        },
+        {
+          "id": 151,
+          "product_id": 3,
+          "property_id": 8,
+          "value": "Men's",
+          "property_name": "gender"
+        },
+        {
+          "id": 152,
+          "product_id": 3,
+          "property_id": 3,
+          "value": "Shirts_coveredplacketshirt_35.99",
+          "property_name": "model"
+        }
+      ],
+      "classifications": [
+        {
+          "taxon_id": 2,
+          "position": 3,
+          "taxon": {
+            "id": 2,
+            "name": "Men",
+            "pretty_name": "Categories -> Men",
+            "permalink": "men",
+            "parent_id": 1,
+            "taxonomy_id": 1,
+            "meta_title": null,
+            "meta_description": null,
+            "taxons": [
+              {
+                "id": 5,
+                "name": "Shirts",
+                "pretty_name": "Categories -> Men -> Shirts",
+                "permalink": "men/shirts",
+                "parent_id": 2,
+                "taxonomy_id": 1,
+                "meta_title": null,
+                "meta_description": null
+              },
+              {
+                "id": 6,
+                "name": "T-shirts",
+                "pretty_name": "Categories -> Men -> T-shirts",
+                "permalink": "men/t-shirts",
+                "parent_id": 2,
+                "taxonomy_id": 1,
+                "meta_title": null,
+                "meta_description": null
+              },
+              {
+                "id": 7,
+                "name": "Sweaters",
+                "pretty_name": "Categories -> Men -> Sweaters",
+                "permalink": "men/sweaters",
+                "parent_id": 2,
+                "taxonomy_id": 1,
+                "meta_title": null,
+                "meta_description": null
+              },
+              {
+                "id": 8,
+                "name": "Jackets and Coats",
+                "pretty_name": "Categories -> Men -> Jackets and Coats",
+                "permalink": "men/jackets-and-coats",
+                "parent_id": 2,
+                "taxonomy_id": 1,
+                "meta_title": null,
+                "meta_description": null
+              }
+            ]
+          }
+        },
+        {
+          "taxon_id": 5,
+          "position": 3,
+          "taxon": {
+            "id": 5,
+            "name": "Shirts",
+            "pretty_name": "Categories -> Men -> Shirts",
+            "permalink": "men/shirts",
+            "parent_id": 2,
+            "taxonomy_id": 1,
+            "meta_title": null,
+            "meta_description": null,
+            "taxons": []
+          }
+        },
+        {
+          "taxon_id": 20,
+          "position": 4,
+          "taxon": {
+            "id": 20,
+            "name": "Trending",
+            "pretty_name": "Categories -> Trending",
+            "permalink": "trending",
+            "parent_id": 1,
+            "taxonomy_id": 1,
+            "meta_title": null,
+            "meta_description": null,
+            "taxons": []
+          }
+        },
+        {
+          "taxon_id": 18,
+          "position": 8,
+          "taxon": {
+            "id": 18,
+            "name": "New",
+            "pretty_name": "Categories -> New",
+            "permalink": "newest",
+            "parent_id": 1,
+            "taxonomy_id": 1,
+            "meta_title": null,
+            "meta_description": null,
+            "taxons": []
+          }
+        }
+      ],
+      "has_variants": true,
+      "display_current_currency_price": "$35.99"
+    }
+  ],
+  "count": 3,
+  "total_count": 116,
+  "current_page": 1,
+  "per_page": 3,
+  "pages": 39
+}

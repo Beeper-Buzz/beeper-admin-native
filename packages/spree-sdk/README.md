@@ -15,7 +15,7 @@ npm install @instincts/spree-sdk @instincts/spree-domain zod
 
 See the exported `probeStore`, `createTransport`, the `auth` helpers and `createAdapter`; the
 app's tRPC routers (`packages/api/src/routers` in the repo)
-show the full sign-in and order flows.
+show the full sign-in, order, product and customer flows.
 
 - `fetch` is injectable (React Native, tests, servers).
 - Errors are `SpreeError` with a `kind` (`auth`, `network`, `invalid`, `rateLimited`…) and the

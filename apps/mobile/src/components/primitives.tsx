@@ -81,18 +81,30 @@ export function Button({
   loading,
   disabled,
   variant = 'primary',
+  size = 'regular',
   ...rest
-}: PressableProps & { title: string; loading?: boolean; variant?: 'primary' | 'plain' }) {
+}: PressableProps & {
+  title: string;
+  loading?: boolean;
+  variant?: 'primary' | 'plain' | 'tonal' | 'destructive';
+  /** `small`: inline row actions (Capture, Refund, Mark shipped). */
+  size?: 'regular' | 'small';
+}) {
   const { colors } = useTheme();
   const primary = variant === 'primary';
+  const background =
+    variant === 'primary' ? colors.accent : variant === 'tonal' ? colors.surface : 'transparent';
+  const ink =
+    variant === 'primary' ? colors.onAccent : variant === 'destructive' ? colors.critical : colors.accentInk;
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityState={{ disabled: !!(disabled || loading), busy: !!loading }}
       disabled={disabled || loading}
       style={({ pressed }) => [
-        styles.button,
-        primary ? { backgroundColor: colors.accent } : { backgroundColor: 'transparent' },
+        size === 'small' ? styles.smallButton : styles.button,
+        { backgroundColor: background },
+        variant === 'tonal' && { borderWidth: StyleSheet.hairlineWidth, borderColor: colors.line },
         { opacity: disabled ? 0.5 : pressed ? 0.85 : 1 },
       ]}
       {...rest}
@@ -100,11 +112,7 @@ export function Button({
       {loading ? (
         <ActivityIndicator color={primary ? colors.onAccent : colors.ink} />
       ) : (
-        <Text
-          font="uiSemibold"
-          size="callout"
-          style={{ color: primary ? colors.onAccent : colors.accentInk }}
-        >
+        <Text font="uiSemibold" size={size === 'small' ? 'footnote' : 'callout'} style={{ color: ink }}>
           {title}
         </Text>
       )}
@@ -170,6 +178,13 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
   },
   dot: { width: 7, height: 7, borderRadius: 4 },
+  smallButton: {
+    minHeight: 32,
+    paddingHorizontal: space[3],
+    borderRadius: radius.badge,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   button: {
     minHeight: layout.hitTarget + 4,
     borderRadius: radius.card,

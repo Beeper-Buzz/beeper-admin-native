@@ -12,3 +12,6 @@ contract-results/
 expo-env.d.ts
 .expo-shared/
 dist-web/
+
+# Agent worktrees (local only)
+.claude/worktrees/

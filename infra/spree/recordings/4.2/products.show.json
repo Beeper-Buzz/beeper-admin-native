@@ -1,0 +1,231 @@
+{
+  "id": 1,
+  "name": "Denim Shirt",
+  "description": "Dicta iste commodi iusto nam dolores. Reiciendis sint animi labore deleniti blanditiis quasi. Molestiae occaecati cum asperiores reprehenderit repellendus. Inventore ut aut accusamus quod placeat quia eligendi. Voluptate ad ducimus iusto nobis cum.",
+  "price": "69.99",
+  "display_price": "$69.99",
+  "available_on": "2026-11-26T23:35:48.658Z",
+  "slug": "denim-shirt",
+  "meta_description": null,
+  "meta_keywords": null,
+  "shipping_category_id": 1,
+  "taxon_ids": [
+    2,
+    5
+  ],
+  "total_on_hand": 35,
+  "master": {
+    "id": 1,
+    "name": "Denim Shirt",
+    "sku": "Shirts_denimshirt_69.99",
+    "price": "69.99",
+    "weight": "0.0",
+    "height": null,
+    "width": null,
+    "depth": null,
+    "is_master": true,
+    "slug": "denim-shirt",
+    "description": "Dicta iste commodi iusto nam dolores. Reiciendis sint animi labore deleniti blanditiis quasi. Molestiae occaecati cum asperiores reprehenderit repellendus. Inventore ut aut accusamus quod placeat quia eligendi. Voluptate ad ducimus iusto nobis cum.",
+    "track_inventory": true,
+    "cost_price": null,
+    "option_values": [],
+    "images": [],
+    "display_price": "$69.99",
+    "options_text": "",
+    "in_stock": true,
+    "is_backorderable": true,
+    "is_orderable": true,
+    "total_on_hand": 2,
+    "is_destroyed": false
+  },
+  "variants": [
+    {
+      "id": 117,
+      "name": "Denim Shirt",
+      "sku": "Shirts_denimshirt_69.99_blue_xs",
+      "price": "69.99",
+      "weight": "0.0",
+      "height": null,
+      "width": null,
+      "depth": null,
+      "is_master": false,
+      "slug": "denim-shirt",
+      "description": "Dicta iste commodi iusto nam dolores. Reiciendis sint animi labore deleniti blanditiis quasi. Molestiae occaecati cum asperiores reprehenderit repellendus. Inventore ut aut accusamus quod placeat quia eligendi. Voluptate ad ducimus iusto nobis cum.",
+      "track_inventory": true,
+      "cost_price": "69.99",
+      "option_values": [
+        {
+          "id": 12,
+          "name": "blue",
+          "presentation": "#0000FF",
+          "option_type_name": "color",
+          "option_type_id": 1,
+          "option_type_presentation": "Color"
+        },
+        {
+          "id": 23,
+          "name": "xs",
+          "presentation": "XS",
+          "option_type_name": "size",
+          "option_type_id": 3,
+          "option_type_presentation": "Size"
+        }
+      ],
+      "images": [],
+      "display_price": "$69.99",
+      "options_text": "Color: blue, Size: XS",
+      "in_stock": true,
+      "is_backorderable": true,
+      "is_orderable": true,
+      "total_on_hand": 33,
+      "is_destroyed": false
+    }
+  ],
+  "option_types": [
+    {
+      "id": 1,
+      "name": "color",
+      "presentation": "Color",
+      "position": 1
+    },
+    {
+      "id": 3,
+      "name": "size",
+      "presentation": "Size",
+      "position": 3
+    }
+  ],
+  "product_properties": [
+    {
+      "id": 137,
+      "product_id": 1,
+      "property_id": 9,
+      "value": "Men",
+      "property_name": "type"
+    },
+    {
+      "id": 138,
+      "product_id": 1,
+      "property_id": 10,
+      "value": "Men",
+      "property_name": "collection"
+    },
+    {
+      "id": 139,
+      "product_id": 1,
+      "property_id": 1,
+      "value": "Jerseys",
+      "property_name": "manufacturer"
+    },
+    {
+      "id": 140,
+      "product_id": 1,
+      "property_id": 2,
+      "value": "Zeta",
+      "property_name": "brand"
+    },
+    {
+      "id": 141,
+      "product_id": 1,
+      "property_id": 6,
+      "value": "90% Cotton 10% Elastan",
+      "property_name": "material"
+    },
+    {
+      "id": 142,
+      "product_id": 1,
+      "property_id": 7,
+      "value": "Form",
+      "property_name": "fit"
+    },
+    {
+      "id": 143,
+      "product_id": 1,
+      "property_id": 8,
+      "value": "Men's",
+      "property_name": "gender"
+    },
+    {
+      "id": 144,
+      "product_id": 1,
+      "property_id": 3,
+      "value": "Shirts_denimshirt_69.99",
+      "property_name": "model"
+    }
+  ],
+  "classifications": [
+    {
+      "taxon_id": 2,
+      "position": 1,
+      "taxon": {
+        "id": 2,
+        "name": "Men",
+        "pretty_name": "Categories -> Men",
+        "permalink": "men",
+        "parent_id": 1,
+        "taxonomy_id": 1,
+        "meta_title": null,
+        "meta_description": null,
+        "taxons": [
+          {
+            "id": 5,
+            "name": "Shirts",
+            "pretty_name": "Categories -> Men -> Shirts",
+            "permalink": "men/shirts",
+            "parent_id": 2,
+            "taxonomy_id": 1,
+            "meta_title": null,
+            "meta_description": null
+          },
+          {
+            "id": 6,
+            "name": "T-shirts",
+            "pretty_name": "Categories -> Men -> T-shirts",
+            "permalink": "men/t-shirts",
+            "parent_id": 2,
+            "taxonomy_id": 1,
+            "meta_title": null,
+            "meta_description": null
+          },
+          {
+            "id": 7,
+            "name": "Sweaters",
+            "pretty_name": "Categories -> Men -> Sweaters",
+            "permalink": "men/sweaters",
+            "parent_id": 2,
+            "taxonomy_id": 1,
+            "meta_title": null,
+            "meta_description": null
+          },
+          {
+            "id": 8,
+            "name": "Jackets and Coats",
+            "pretty_name": "Categories -> Men -> Jackets and Coats",
+            "permalink": "men/jackets-and-coats",
+            "parent_id": 2,
+            "taxonomy_id": 1,
+            "meta_title": null,
+            "meta_description": null
+          }
+        ]
+      }
+    },
+    {
+      "taxon_id": 5,
+      "position": 1,
+      "taxon": {
+        "id": 5,
+        "name": "Shirts",
+        "pretty_name": "Categories -> Men -> Shirts",
+        "permalink": "men/shirts",
+        "parent_id": 2,
+        "taxonomy_id": 1,
+        "meta_title": null,
+        "meta_description": null,
+        "taxons": []
+      }
+    }
+  ],
+  "has_variants": true,
+  "display_current_currency_price": "$69.99"
+}
