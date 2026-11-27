@@ -22,5 +22,8 @@
     "dsn": "https://1e62f2e4f9d776a3bf295a9541cf30ca@o4505382238158848.ingest.us.sentry.io/4512500421754880",
     "organization": "material-instinct-llc",
     "project": "beeper-admin-native"
+  },
+  "storeUrls": {
+    "ios": "https://apps.apple.com/app/id6839775671"
   }
 }
