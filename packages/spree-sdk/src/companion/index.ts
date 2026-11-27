@@ -1,6 +1,9 @@
 import { type ManualPaymentMethod, money, StoreSummary } from '@instincts/spree-domain';
 import { SpreeError } from '../errors';
 import type { Transport } from '../transport';
+import { type AppVersionInfo, fetchAppVersion } from './appVersion';
+
+export { APP_VERSION_TIMEOUT_MS, type AppVersionInfo, parseAppVersion } from './appVersion';
 
 /** Client for the optional `spree_admin_native` gem (gems/spree_admin_native). */
 const BASE = '/api/admin_native/v1';
@@ -42,6 +45,12 @@ export interface CompanionPort {
   manualPaymentMethods(): Promise<ManualPaymentMethod[]>;
   /** Spree 4.2–4.3: delete an incomplete order (API v1 has no destroy). Gem 0.3+. */
   discardDraft(orderNumber: string): Promise<void>;
+  /**
+   * Gem 0.6+ (`app.versionGate`): the store's minimum and recommended versions of this app for a
+   * platform. Public, so it is sent without auth. Null on any failure (network, 5 s timeout, bad
+   * payload), so the gate fails open.
+   */
+  appVersion(platform: string, version?: string | null): Promise<AppVersionInfo | null>;
 }
 
 /** What a scanned QR code holds: `https://store/api/admin_native/v1/pair?code=ABCD…`. */
@@ -154,5 +163,6 @@ export function companion(transport: Transport): CompanionPort {
         path: `${BASE}/orders/${encodeURIComponent(orderNumber)}`,
       });
     },
+    appVersion: (platform, version) => fetchAppVersion(transport, platform, version),
   };
 }

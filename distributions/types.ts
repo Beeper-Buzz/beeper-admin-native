@@ -21,6 +21,19 @@ export interface DistributionConfig {
   brandColor: string;
   /** Crash and error reporting with Sentry. Off unless a DSN is set. See docs/forking.md. */
   sentry?: SentryConfig;
+  /**
+   * The app's own store listings: where Update goes on the "Update required" screen and the
+   * "Update available" prompt when the connected store sets a version but no update link.
+   * Read at runtime through `@distribution`, never passed through app.config.ts.
+   */
+  storeUrls?: StoreUrls;
+}
+
+export interface StoreUrls {
+  /** App Store (or TestFlight) link, e.g. `https://apps.apple.com/app/id0000000000`. */
+  ios?: string;
+  /** Google Play link, e.g. `https://play.google.com/store/apps/details?id=com.example.admin`. */
+  android?: string;
 }
 
 export interface SentryConfig {

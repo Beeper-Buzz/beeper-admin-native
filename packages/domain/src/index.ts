@@ -8,4 +8,5 @@ export * from './money';
 export * from './order';
 export * from './product';
 export * from './promotion';
+export * from './semver';
 export * from './summary';

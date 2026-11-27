@@ -50,6 +50,8 @@ export const CORE_CAPABILITIES = [
   'channels',
   /** Host-described admin types (companion gem 0.4+). */
   'admin.resources',
+  /** The store sets minimum and recommended app versions (companion gem 0.6+, `GET app_version`). */
+  'app.versionGate',
 ] as const;
 export type CoreCapability = (typeof CORE_CAPABILITIES)[number];
 /** A core capability or an extension's namespaced capability (`vendor.feature`). */

@@ -11,6 +11,7 @@ the open-source mobile admin app for Spree. The app works without it; the gem ad
   missing alt text a filter away (Spree 4.x's API only lists one product's images at a time).
 - **Order creation helpers (Spree 4.2–4.3).** Card-free payment methods and draft deletion for
   orders the merchant creates in the app.
+- **App version gate.** Require a minimum version of the app, or recommend a newer one, from Spree admin.
 - **Capabilities.** Tells the app what your store supports, including features your own
   extensions add.
 
@@ -33,7 +34,7 @@ bin/rails railties:install:migrations FROM=spree_admin_native
 bin/rails db:migrate
 ```
 
-Then open **/admin/admin_native/devices** in Spree admin and tap **Pair a device**.
+Then open **/admin/admin_native_devices** (the Admin app page) in Spree admin and tap **Pair a device**.
 
 For servers without a browser session (or for scripts and tests):
 
@@ -51,6 +52,8 @@ SpreeAdminNative.configure do |c|
   c.pairing_ttl = 10.minutes
   c.expose_versions = true # Spree and gem versions on the public capabilities endpoint
   c.permit_bigdecimal_yaml = true # see "Decimal settings" below
+  c.ios_bundle_id = 'com.example.admin' # App Store check for app versions; nil skips it
+  c.app_version_gate = true # false turns the app version gate off
 end
 
 # Extensions announce features the app can light up:
@@ -67,6 +70,7 @@ All under `/api/admin_native/v1`.
 | Endpoint                                       | Auth                          | What                                                                                                                                                                                                                           |
 | ---------------------------------------------- | ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `GET capabilities`                             | none                          | API families, extra capabilities and sign-in methods, store name and currency                                                                                                                                                  |
+| `GET app_version`                              | none                          | The app version gate for `platform` (and `version`); see "App version gate" below                                                                                                                                              |
 | `POST pairings/exchange`                       | one-time code                 | `{code, device_name, platform}` → `{token, device, user}`                                                                                                                                                                      |
 | `GET summary`                                  | device token or admin API key | Today's orders and sales, orders to fulfil, payments due, low-stock variants                                                                                                                                                   |
 | `GET low_stock`                                | device token or admin API key | Products with low-stock variants, lowest first: `{data: [{product_id, low_variants, lowest_on_hand}], meta: {total_count, threshold}}`                                                                                         |
@@ -295,6 +299,66 @@ are reported under its foreign key (`country_id`) when that is a field, and `bas
 
 All admin-only. With no database (asset precompile), types are simply unavailable instead of
 raising.
+
+## App version gate
+
+New in 0.6. A store can require a minimum version of the admin app, and recommend a newer one.
+Below the minimum the app shows a full-screen Update required screen; below the recommended
+version it asks, without forcing, with an Update available prompt. The settings belong to the
+store, and a store that sets nothing has no gate.
+
+### Admin page
+
+The **App versions** section of the Admin app page (`/admin/admin_native_devices`) has a form
+for iOS, Android and All. A platform without its own row uses the All row, and the table at the
+top shows what each platform currently gets.
+
+| Field                        | What                                                                                   |
+| ---------------------------- | -------------------------------------------------------------------------------------- |
+| Minimum version              | `x.y.z`. Below it, the app can't be used until it's updated. `0.0.0` means no minimum. |
+| Recommended version          | `x.y.z`, at or above the minimum. Below it, people are asked, not forced, to update.   |
+| Update link                  | Where the Update button goes (App Store, TestFlight or Play link); `https` only        |
+| Allow ahead of the App Store | iOS and All only: skips the App Store check, for a version in review or on TestFlight  |
+
+Leave a version blank for none. Clearing both versions and the link deletes the platform's row.
+
+**App Store check.** When `ios_bundle_id` is set, the iOS and All versions can't be above the
+version the App Store serves for it (`https://itunes.apple.com/lookup?bundleId=…`, 5 s timeout),
+unless "Allow ahead of the App Store" is ticked. A failed lookup, or an app the App Store doesn't
+list, counts as not live: the form says so and asks for the box. The check runs when a version
+or the box changes, so editing only the link never needs the App Store. Android has no check.
+
+### Endpoint
+
+`GET /api/admin_native/v1/app_version?platform=ios&version=1.2.3` is public: an outdated app
+must reach it before anyone signs in, and it reveals only version numbers and the store link.
+
+```json
+{
+  "data": {
+    "minimum_version": "1.0.0",
+    "recommended_version": "1.1.0",
+    "update_url": "https://apps.apple.com/app/id123",
+    "update_required": true,
+    "update_recommended": true
+  }
+}
+```
+
+1. `platform` is `ios` or `android`; any other value (or none) reads the All row.
+1. The fields are null when nothing is set.
+1. `update_required` and `update_recommended` are computed only when `version` parses: `1.2` is
+   `1.2.0`, and prerelease and build tags are dropped (`1.2.3-beta.1` is `1.2.3`). Otherwise both
+   are false and the app compares versions itself. A minimum of `0.0.0` never requires an update.
+1. It is 404 when the gate is off.
+
+### Capability and configuration
+
+The capabilities response lists `app.versionGate` when the gate is on and its table exists, so the
+app only asks stores that have the endpoint. `c.app_version_gate = false` turns off the
+capability, the endpoint and the admin section; `c.ios_bundle_id` turns on the App Store check.
+The table, `spree_admin_native_app_versions`, comes with the gem's migrations
+(`railties:install:migrations FROM=spree_admin_native`, then `db:migrate`).
 
 ## Security
 

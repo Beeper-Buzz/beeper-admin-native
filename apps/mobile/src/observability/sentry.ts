@@ -117,6 +117,14 @@ export function tagStore(probe: Pick<StoreProbe, 'baseUrl' | 'preferredApi' | 's
   Sentry.setTag('spree_version', probe?.spreeVersion ?? null);
 }
 
+/**
+ * A breadcrumb for the app version gate. Breadcrumbs only: a gate that closes, or a check that
+ * fails open, is not an error. Sentry drops them while it is off.
+ */
+export function versionGateBreadcrumb(message: string, data?: Record<string, unknown>) {
+  Sentry.addBreadcrumb({ category: 'version-gate', level: 'info', message, ...(data ? { data } : {}) });
+}
+
 /** Error kinds that are the user's or the network's, not a defect: shown in the UI, not reported. */
 const EXPECTED_KINDS = new Set([
   'auth',

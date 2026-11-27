@@ -1,8 +1,9 @@
-<% content_for :page_title do %>Mobile app devices<% end %>
+<% content_for :page_title do %>Admin app<% end %>
 <% content_for :page_actions do %>
   <%= button_to 'Pair a device', pair_admin_admin_native_devices_path, method: :post, class: 'btn btn-primary' %>
 <% end %>
 
+<h4 id="devices">Devices</h4>
 <p>Sign in to the Spree Admin mobile app by scanning a pairing code instead of typing a password or API key.
 Each device gets its own key, which you can sign out here at any time.</p>
 
@@ -25,4 +26,8 @@ Each device gets its own key, which you can sign out here at any time.</p>
   </table>
 <% else %>
   <p class="text-muted">No devices yet. Tap <strong>Pair a device</strong> to add one.</p>
+<% end %>
+
+<% if @app_versions %>
+  <%= render 'spree/admin/admin_native_devices/app_versions', app_versions: @app_versions %>
 <% end %>

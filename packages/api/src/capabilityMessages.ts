@@ -15,6 +15,7 @@ const MESSAGES: Record<string, string> = {
   'analytics.summary': 'Sales summaries need Spree 5.4+ or the companion gem.',
   'notifications.push': 'Push notifications need the companion gem, or Spree webhooks with the relay.',
   'admin.resources': "This store doesn't describe any admin types (companion gem 0.4 with registered types).",
+  'app.versionGate': "This store doesn't set app versions (companion gem 0.6).",
   'webhooks.manage': "This store's Spree version doesn't support webhooks.",
 };
 

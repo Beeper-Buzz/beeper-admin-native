@@ -15,6 +15,7 @@ jest.mock('@sentry/react-native', () => ({
   init: jest.fn(),
   wrap: (component) => component,
   captureException: jest.fn(),
+  addBreadcrumb: jest.fn(),
   setTag: jest.fn(),
   expoRouterIntegration: jest.fn(() => ({ name: 'ExpoRouter' })),
   consoleLoggingIntegration: jest.fn(() => ({ name: 'ConsoleLogs' })),

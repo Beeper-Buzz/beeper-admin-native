@@ -1,0 +1,56 @@
+{
+  "$comment": "Companion gem 0.6 GET /api/admin_native/v1/app_version bodies as docs/superpowers/specs/2026-11-28-app-version-gate.md and the merged gem give them (below the minimum both booleans are true; a 0.0.0 minimum comes back as the string), used by the SDK and router tests.",
+  "capabilities": {
+    "spree_version": "4.2.7",
+    "gem_version": "0.6.0",
+    "api_families": ["api-v1"],
+    "capabilities": ["notifications.push", "analytics.summary", "admin.resources", "app.versionGate"],
+    "auth_methods": ["pairing", "spreeToken"],
+    "store": { "name": "Spree Demo Store", "currency": "USD" }
+  },
+  "unset": {
+    "data": {
+      "minimum_version": null,
+      "recommended_version": null,
+      "update_url": null,
+      "update_required": false,
+      "update_recommended": false
+    }
+  },
+  "required": {
+    "data": {
+      "minimum_version": "1.0.0",
+      "recommended_version": "1.1.0",
+      "update_url": "https://apps.apple.com/app/id123",
+      "update_required": true,
+      "update_recommended": true
+    }
+  },
+  "recommended": {
+    "data": {
+      "minimum_version": "0.9.0",
+      "recommended_version": "1.1.0",
+      "update_url": "https://apps.apple.com/app/id123",
+      "update_required": false,
+      "update_recommended": true
+    }
+  },
+  "noMinimum": {
+    "data": {
+      "minimum_version": "0.0.0",
+      "recommended_version": null,
+      "update_url": null,
+      "update_required": false,
+      "update_recommended": false
+    }
+  },
+  "withoutVersion": {
+    "data": {
+      "minimum_version": "1.0.0",
+      "recommended_version": "1.1.0",
+      "update_url": null,
+      "update_required": false,
+      "update_recommended": false
+    }
+  }
+}

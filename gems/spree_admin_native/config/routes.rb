@@ -1,6 +1,7 @@
 SpreeAdminNative::Engine.routes.draw do
   scope 'api/admin_native/v1', module: 'api', defaults: { format: :json } do
     get 'capabilities', to: 'capabilities#show'
+    get 'app_version', to: 'app_versions#show'
     get 'pair', to: 'pairings#show'
     post 'pairings/exchange', to: 'pairings#exchange'
     get 'devices', to: 'devices#index'
@@ -32,6 +33,9 @@ if 'Spree::Admin::BaseController'.safe_constantize && Spree::Core::Engine.respon
       resources :admin_native_devices, only: %i[index destroy] do
         collection { post :pair }
       end
+      # Keyed by platform (ios, android, all): saving creates or updates that platform's row.
+      resources :admin_native_app_versions, only: %i[update destroy], param: :platform,
+                                            constraints: { platform: /ios|android|all/ }
     end
   end
 end

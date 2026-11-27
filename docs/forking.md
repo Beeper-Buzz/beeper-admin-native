@@ -42,11 +42,21 @@ on your EAS project (all environments) so cloud builds and `eas update` use it.
     "dsn": "https://<key>@<org>.ingest.sentry.io/<project-id>",
     "organization": "your-sentry-org",
     "project": "acme-admin"
+  },
+  "storeUrls": {
+    "ios": "https://apps.apple.com/app/id0000000000",
+    "android": "https://play.google.com/store/apps/details?id=com.example.admin"
   }
 }
 ```
 
 `distributions/types.ts` documents each field.
+
+`storeUrls` (optional) are your app's own store listings. A Spree store with the companion gem
+0.6 can require or recommend a minimum app version; when it sets no update link of its own, the
+app's Update button opens the listing for the platform here, and without either the button is
+hidden. The app reads `storeUrls` at runtime, so adding or changing them can ship as an update
+(`eas update`) without a new build.
 
 ## Crash reporting (Sentry)
 

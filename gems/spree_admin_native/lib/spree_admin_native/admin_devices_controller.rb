@@ -6,6 +6,7 @@ module Spree
     class AdminNativeDevicesController < Spree::Admin::BaseController
       def index
         @devices = SpreeAdminNative::Device.active.where(owner: try_spree_current_user).order(created_at: :desc)
+        @app_versions = SpreeAdminNative::AppVersion.forms if SpreeAdminNative::AppVersion.enabled?
       end
 
       # Creates a one-time code and shows it as a QR code and as text.

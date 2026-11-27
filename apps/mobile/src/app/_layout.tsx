@@ -10,6 +10,7 @@ import { Sentry, tagStore } from '@/observability/sentry';
 import { SessionProvider, useSession } from '@/session/session';
 import { AppThemeProvider, useTheme } from '@/theme/theme';
 import { ApiProvider } from '@/trpc/trpc';
+import { VersionGate } from '@/version-gate/version-gate';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -48,17 +49,21 @@ function Navigation({ ready }: { ready: boolean }) {
   }, [booted]);
   if (!booted) return null;
 
+  const gateStore =
+    state.status === 'ready' ? { id: state.store.id, capabilities: state.store.probe.capabilities } : null;
   return (
     <ApiProvider session={state.session} onAuthError={signOut}>
       <StatusBar style={scheme === 'dark' ? 'light' : 'dark'} />
-      <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.bg } }}>
-        <Stack.Protected guard={state.status === 'ready'}>
-          <Stack.Screen name="(tabs)" />
-        </Stack.Protected>
-        <Stack.Protected guard={state.status !== 'ready'}>
-          <Stack.Screen name="(auth)" />
-        </Stack.Protected>
-      </Stack>
+      <VersionGate store={gateStore} storeName={probe?.storeName ?? null} onSwitchStore={signOut}>
+        <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.bg } }}>
+          <Stack.Protected guard={state.status === 'ready'}>
+            <Stack.Screen name="(tabs)" />
+          </Stack.Protected>
+          <Stack.Protected guard={state.status !== 'ready'}>
+            <Stack.Screen name="(auth)" />
+          </Stack.Protected>
+        </Stack>
+      </VersionGate>
     </ApiProvider>
   );
 }

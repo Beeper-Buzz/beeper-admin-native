@@ -8,6 +8,7 @@ require 'json'
 
 class SpreeAdminNativeIntegrationTest < Minitest::Test
   include Rack::Test::Methods
+  include Warden::Test::Helpers
 
   def app
     Rails.application
@@ -1262,5 +1263,329 @@ class SpreeAdminNativeIntegrationTest < Minitest::Test
     refute_includes registry.available.map(&:key), 't5_offline'
   ensure
     %w[t5_secrets t5_offline].each { |k| registry.unregister(k) }
+  end
+
+  # --- 0.6: app version gate --------------------------------------------------------------
+
+  AppVersion = SpreeAdminNative::AppVersion
+
+  def with_gem_config(values)
+    config = SpreeAdminNative.config
+    previous = values.keys.map { |key| [key, config.public_send(key)] }.to_h
+    values.each { |key, value| config.public_send("#{key}=", value) }
+    yield
+  ensure
+    previous.each { |key, value| config.public_send("#{key}=", value) }
+  end
+
+  # Stubs Net::HTTP.start for the App Store lookup. `live` is the version the App Store serves (nil:
+  # no app); `error` is raised instead; `status` other than 200 is an HTTP failure. Yields the list
+  # of lookups made, each { host:, path:, options: }.
+  def stub_app_store(live: nil, error: nil, status: 200)
+    lookups = []
+    original = Net::HTTP.method(:start)
+    Net::HTTP.define_singleton_method(:start) do |host, _port = nil, *rest, &block|
+      http = Object.new
+      http.define_singleton_method(:request) do |request|
+        lookups << { host: host, path: request.path, options: rest.last }
+        raise error if error
+
+        results = live ? [{ 'bundleId' => 'com.example.admin', 'version' => live }] : []
+        response = (status == 200 ? Net::HTTPOK : Net::HTTPServiceUnavailable).new('1.1', status.to_s, '')
+        response.instance_variable_set(:@body, { resultCount: results.size, results: results }.to_json)
+        response.instance_variable_set(:@read, true)
+        response
+      end
+      block.call(http)
+    end
+    yield lookups
+  ensure
+    Net::HTTP.define_singleton_method(:start, original)
+  end
+
+  def app_version(attrs)
+    AppVersion.new({ platform: 'ios' }.merge(attrs))
+  end
+
+  def test_app_version_validates_formats_order_and_links
+    AppVersion.delete_all
+    assert app_version(minimum_version: '1.2.3', recommended_version: '1.10.0').valid?
+    %w[1.2 1.2.3.4 v1.2.3 1.2.3-beta abc].each do |bad|
+      record = app_version(minimum_version: bad, recommended_version: bad)
+      refute record.valid?, bad
+      assert_equal ['must be a version like 1.2.3'], record.errors[:minimum_version], bad
+      assert_equal ['must be a version like 1.2.3'], record.errors[:recommended_version], bad
+    end
+
+    below = app_version(minimum_version: '1.10.0', recommended_version: '1.9.0')
+    refute below.valid?
+    assert_equal ["can't be below the minimum version (1.10.0)"], below.errors[:recommended_version]
+    assert app_version(minimum_version: '1.2.0', recommended_version: '1.2.0').valid?, 'recommended may equal minimum'
+
+    assert app_version(update_url: 'https://apps.apple.com/app/id123').valid?
+    ['http://apps.apple.com/app/id123', 'itms-apps://apps.apple.com/app/id123', 'https://', 'not a link', 'https:foo'].each do |bad|
+      record = app_version(update_url: bad)
+      refute record.valid?, bad
+      assert_equal ['must be an https link'], record.errors[:update_url], bad
+    end
+
+    blank = app_version(minimum_version: '', recommended_version: '  ', update_url: ' ')
+    assert blank.valid?
+    assert_nil blank.minimum_version
+    assert_nil blank.recommended_version
+    assert_nil blank.update_url
+    assert blank.cleared?
+    assert app_version(platform: 'android', recommended_version: '2.0.0').valid?, 'either version alone'
+
+    refute app_version(platform: 'web').valid?
+    AppVersion.create!(platform: 'ios', minimum_version: '1.0.0')
+    refute app_version(minimum_version: '1.0.0').valid?, 'one row per platform'
+  end
+
+  def test_app_store_check_compares_with_the_live_version
+    AppVersion.delete_all
+    with_gem_config(ios_bundle_id: 'com.example.admin') do
+      stub_app_store(live: '1.2.0') do |lookups|
+        assert app_version(minimum_version: '1.1.0', recommended_version: '1.2.0').valid?, 'below and at the live version'
+        lookup = lookups.last
+        assert_equal 'itunes.apple.com', lookup[:host]
+        assert_equal '/lookup?bundleId=com.example.admin', lookup[:path]
+        assert_equal 5, lookup[:options][:open_timeout]
+        assert_equal 5, lookup[:options][:read_timeout]
+        assert lookup[:options][:use_ssl]
+
+        above = app_version(minimum_version: '1.2.1', recommended_version: '1.3.0')
+        refute above.valid?
+        assert_match(/is above 1\.2\.0, the version live on the App Store/, above.errors[:minimum_version].first)
+        assert_match(/Allow ahead of the App Store/, above.errors[:recommended_version].first)
+
+        refute AppVersion.new(platform: 'all', recommended_version: '1.3.0').valid?, 'the all row is checked too'
+        assert app_version(minimum_version: '0.0.0').valid?, '0.0.0 is no minimum'
+
+        count = lookups.size
+        assert app_version(minimum_version: '2.0.0', allow_ahead_of_store: true).valid?, 'ahead allowed'
+        assert AppVersion.new(platform: 'android', minimum_version: '9.0.0').valid?, 'Android is not looked up'
+        assert_equal count, lookups.size
+      end
+    end
+  end
+
+  def test_app_store_lookup_failures_are_validation_messages
+    AppVersion.delete_all
+    with_gem_config(ios_bundle_id: 'com.example.admin') do
+      [{ live: nil }, { status: 503 }, { error: Net::OpenTimeout }, { error: SocketError.new('getaddrinfo') },
+       { error: OpenSSL::SSL::SSLError }, { error: JSON::ParserError }].each do |failure|
+        stub_app_store(**failure) do
+          record = app_version(minimum_version: '1.0.0')
+          refute record.valid?, failure.inspect
+          assert_match(/no live version of com\.example\.admin, or couldn't be reached/, record.errors[:base].first)
+          assert_match(/Tick "Allow ahead of the App Store"/, record.errors[:base].first)
+          assert app_version(minimum_version: '1.0.0', allow_ahead_of_store: true).valid?
+        end
+      end
+    end
+  end
+
+  def test_app_store_check_is_skipped_without_a_bundle_id_or_a_version_change
+    AppVersion.delete_all
+    stub_app_store(live: '1.0.0') do |lookups|
+      with_gem_config(ios_bundle_id: nil) { assert app_version(minimum_version: '9.9.9').valid? }
+      with_gem_config(ios_bundle_id: ' ') { assert app_version(minimum_version: '9.9.9').valid? }
+      assert_empty lookups
+
+      with_gem_config(ios_bundle_id: 'com.example.admin') do
+        row = AppVersion.create!(platform: 'ios', minimum_version: '2.0.0', allow_ahead_of_store: true)
+        row.update_column(:allow_ahead_of_store, false)
+        row.reload.update_url = 'https://apps.apple.com/app/id123'
+        assert row.valid?, 'editing the link alone needs no lookup'
+        assert_equal 0, lookups.size
+        row.minimum_version = '2.0.1'
+        refute row.valid?
+        assert_equal 1, lookups.size
+      end
+    end
+  end
+
+  def test_effective_settings_prefer_the_platform_row_then_all
+    AppVersion.delete_all
+    none = { minimum_version: nil, recommended_version: nil, update_url: nil }
+    assert_equal none, AppVersion.effective('ios')
+
+    AppVersion.create!(platform: 'all', minimum_version: '1.0.0', recommended_version: '1.1.0', update_url: 'https://example.com/all')
+    all = { minimum_version: '1.0.0', recommended_version: '1.1.0', update_url: 'https://example.com/all' }
+    assert_equal all, AppVersion.effective('ios')
+    assert_equal all, AppVersion.effective('android')
+
+    AppVersion.create!(platform: 'ios', recommended_version: '2.0.0')
+    assert_equal({ minimum_version: nil, recommended_version: '2.0.0', update_url: nil }, AppVersion.effective('ios'))
+    assert_equal({ minimum_version: nil, recommended_version: '2.0.0', update_url: nil }, AppVersion.effective(' IOS '))
+    assert_equal all, AppVersion.effective('android')
+    assert_equal all, AppVersion.effective('windows'), 'an unknown platform reads the all row'
+    assert_equal all, AppVersion.effective(nil)
+
+    AppVersion.where(platform: 'all').delete_all
+    assert_equal none, AppVersion.effective('android')
+  end
+
+  def app_version_json(query)
+    get '/api/admin_native/v1/app_version', query
+    assert_equal 200, last_response.status, last_response.body
+    json['data']
+  end
+
+  def test_app_version_endpoint
+    AppVersion.delete_all
+    unset = { 'minimum_version' => nil, 'recommended_version' => nil, 'update_url' => nil,
+              'update_required' => false, 'update_recommended' => false }
+    assert_equal unset, app_version_json(platform: 'ios', version: '1.0.0')
+    assert_equal unset, app_version_json({})
+
+    AppVersion.create!(platform: 'ios', minimum_version: '1.1.0', recommended_version: '1.2.0', update_url: 'https://apps.apple.com/app/id123')
+    data = app_version_json(platform: 'ios', version: '1.0.0')
+    assert_equal({ 'minimum_version' => '1.1.0', 'recommended_version' => '1.2.0', 'update_url' => 'https://apps.apple.com/app/id123',
+                   'update_required' => true, 'update_recommended' => true }, data)
+    {
+      '1.1.0' => [false, true], '1.1.9' => [false, true], '1.2.0' => [false, false], '1.10.0' => [false, false],
+      '1.1' => [false, true], '1.0.9-beta.2' => [true, true], '1.2.0+45' => [false, false], '1' => [true, true],
+      nil => [false, false], '' => [false, false], 'abc' => [false, false], '1.2.3.4' => [false, false], 'v1.0.0' => [false, false]
+    }.each do |version, (required, recommended)|
+      data = app_version_json(version ? { platform: 'ios', version: version } : { platform: 'ios' })
+      assert_equal [required, recommended], [data['update_required'], data['update_recommended']], version.inspect
+      assert_equal '1.1.0', data['minimum_version']
+    end
+
+    assert_equal unset, app_version_json(platform: 'android', version: '1.0.0')
+    AppVersion.create!(platform: 'all', minimum_version: '0.0.0', recommended_version: '3.0.0')
+    data = app_version_json(platform: 'android', version: '0.0.0')
+    assert_equal '0.0.0', data['minimum_version']
+    assert_equal false, data['update_required'], 'a 0.0.0 minimum is no minimum'
+    assert_equal true, data['update_recommended']
+    data = app_version_json(platform: 'windows', version: '3.0.0')
+    assert_equal ['0.0.0', '3.0.0', false, false], data.values_at('minimum_version', 'recommended_version', 'update_required', 'update_recommended')
+
+    header 'X-Spree-Token', 'san_not_a_real_token'
+    assert_equal '1.1.0', app_version_json(platform: 'ios', version: '1.0.0')['minimum_version'], 'public, a bad token is ignored'
+
+    with_gem_config(app_version_gate: false) do
+      get '/api/admin_native/v1/app_version', platform: 'ios'
+      assert_equal 404, last_response.status
+    end
+  end
+
+  def test_capability_follows_the_gate_switch
+    get '/api/admin_native/v1/capabilities'
+    assert_includes json['capabilities'], 'app.versionGate'
+    with_gem_config(app_version_gate: false) do
+      get '/api/admin_native/v1/capabilities'
+      refute_includes json['capabilities'], 'app.versionGate'
+    end
+  end
+
+  # --- 0.6: the admin app page's App versions section --------------------------------------
+
+  def sign_in_to_admin(user)
+    Warden.test_mode!
+    login_as(user, scope: :spree_user)
+  end
+
+  def form_token(form_id)
+    last_response.body[/id="#{form_id}".*?name="authenticity_token" value="([^"]+)"/m, 1] || raise("no token for #{form_id}")
+  end
+
+  def save_app_version(platform, values)
+    get '/admin/admin_native_devices'
+    assert_equal 200, last_response.status
+    patch "/admin/admin_native_app_versions/#{platform}", authenticity_token: form_token("app-version-#{platform}"), app_version: values
+  end
+
+  def test_admin_page_shows_and_saves_app_versions
+    AppVersion.delete_all
+    sign_in_to_admin(@admin)
+    get '/admin/admin_native_devices'
+    assert_equal 200, last_response.status
+    body = last_response.body
+    assert_includes body, 'App versions'
+    ["Below the minimum, the app can't be used until it's updated.", 'Below the recommended version, people are asked, not forced, to update.',
+     'Leave a version blank for none.'].each { |hint| assert_includes body, CGI.escapeHTML(hint) }
+    assert_includes body, 'Pair a device', 'the devices section stays'
+    forms = %w[ios android all].map { |p| [p, body[/<form[^>]*id="app-version-#{p}".*?<\/form>/m]] }.to_h
+    forms.each { |p, form| refute_nil form, p }
+    assert_includes forms['ios'], 'Allow ahead of the App Store'
+    assert_includes forms['all'], 'Allow ahead of the App Store'
+    refute_includes forms['android'], 'Allow ahead of the App Store'
+    assert_equal 2, body.scan('No versions set').size
+
+    save_app_version('ios', minimum_version: '1.1.0', recommended_version: '1.2.0', update_url: 'https://apps.apple.com/app/id123',
+                            allow_ahead_of_store: '1')
+    assert_equal 302, last_response.status, last_response.body[0, 500]
+    assert_match %r{/admin/admin_native_devices#app-versions\z}, last_response.location
+    row = AppVersion.find_by!(platform: 'ios')
+    assert_equal ['1.1.0', '1.2.0', 'https://apps.apple.com/app/id123', true],
+                 [row.minimum_version, row.recommended_version, row.update_url, row.allow_ahead_of_store]
+    follow_redirect!
+    assert_includes last_response.body, 'iOS app versions saved.'
+    assert_includes last_response.body, 'value="1.1.0"'
+    assert_equal 1, last_response.body.scan('No versions set').size, 'Android still has none'
+    assert_equal '1.1.0', app_version_json(platform: 'ios', version: '1.0.0')['minimum_version']
+
+    save_app_version('android', minimum_version: '2.0.0', allow_ahead_of_store: '1')
+    assert_equal 302, last_response.status
+    refute AppVersion.find_by!(platform: 'android').allow_ahead_of_store, 'Android has no App Store box'
+
+    save_app_version('ios', minimum_version: ' ', recommended_version: '', update_url: '')
+    assert_equal 302, last_response.status
+    refute AppVersion.exists?(platform: 'ios'), 'clearing both versions and the link deletes the row'
+    follow_redirect!
+    assert_includes last_response.body, 'iOS app versions cleared.'
+
+    get '/admin/admin_native_devices'
+    delete '/admin/admin_native_app_versions/android', authenticity_token: form_token('app-version-android-clear')
+    assert_equal 302, last_response.status
+    refute AppVersion.exists?(platform: 'android')
+  ensure
+    Warden.test_reset!
+  end
+
+  def test_admin_page_shows_errors_inline
+    AppVersion.delete_all
+    sign_in_to_admin(@admin)
+    save_app_version('android', minimum_version: '1.2', recommended_version: '1.0.0', update_url: 'http://example.com')
+    assert_equal 422, last_response.status
+    form = last_response.body[/<form[^>]*id="app-version-android".*?<\/form>/m]
+    assert_includes form, 'Minimum version must be a version like 1.2.3'
+    assert_includes form, 'Update link must be an https link'
+    assert_includes form, 'value="1.2"', 'keeps what was typed'
+    assert_includes form, 'is-invalid'
+    refute AppVersion.exists?(platform: 'android')
+
+    with_gem_config(ios_bundle_id: 'com.example.admin') do
+      stub_app_store(error: Net::ReadTimeout) do
+        save_app_version('ios', minimum_version: '1.0.0')
+        assert_equal 422, last_response.status
+        form = last_response.body[/<form[^>]*id="app-version-ios".*?<\/form>/m]
+        assert_includes form, 'Tick &quot;Allow ahead of the App Store&quot;'
+      end
+    end
+  ensure
+    Warden.test_reset!
+  end
+
+  def test_admin_page_refuses_non_admins
+    AppVersion.delete_all
+    shopper = Spree.user_class.create!(email: "shopper-#{SecureRandom.hex(4)}@example.com", password: 'secret123', password_confirmation: 'secret123')
+    refute shopper.has_spree_role?(:admin)
+    sign_in_to_admin(shopper)
+    get '/admin/admin_native_devices'
+    assert_equal 302, last_response.status
+    refute_includes last_response.location, 'admin_native_devices'
+
+    forgery = ActionController::Base.allow_forgery_protection
+    ActionController::Base.allow_forgery_protection = false
+    patch '/admin/admin_native_app_versions/ios', app_version: { minimum_version: '1.0.0' }
+    assert_equal 302, last_response.status
+    refute AppVersion.exists?(platform: 'ios')
+  ensure
+    ActionController::Base.allow_forgery_protection = forgery unless forgery.nil?
+    Warden.test_reset!
   end
 end

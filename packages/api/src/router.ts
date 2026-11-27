@@ -1,3 +1,4 @@
+import { appInfoRouter } from './routers/app';
 import { customersRouter } from './routers/customers';
 import { dashboardRouter, devicesRouter } from './routers/dashboard';
 import { mediaRouter } from './routers/media';
@@ -18,6 +19,7 @@ export const appRouter = router({
   dashboard: dashboardRouter,
   devices: devicesRouter,
   resources: resourcesRouter,
+  app: appInfoRouter,
 });
 
 export type AppRouter = typeof appRouter;

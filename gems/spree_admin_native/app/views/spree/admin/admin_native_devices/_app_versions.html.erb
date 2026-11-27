@@ -1,0 +1,85 @@
+<h4 id="app-versions" class="mt-5">App versions</h4>
+<p>Ask people to update the admin app, or stop old versions from working with this store.
+A platform without its own versions uses <strong>All</strong>. Leave a version blank for none.</p>
+
+<table class="table" id="app-versions-effective">
+  <thead><tr><th>Platform</th><th>Minimum</th><th>Recommended</th><th>Update link</th><th>From</th></tr></thead>
+  <tbody>
+    <% %w[ios android].each do |platform| %>
+      <% row = SpreeAdminNative::AppVersion.effective_row(platform) %>
+      <tr data-platform="<%= platform %>">
+        <td><%= SpreeAdminNative::AppVersion::LABELS[platform] %></td>
+        <% if row %>
+          <td><%= row.minimum_version || 'None' %></td>
+          <td><%= row.recommended_version || 'None' %></td>
+          <td><%= row.update_url ? link_to(row.update_url, row.update_url, target: '_blank', rel: 'noopener') : 'None' %></td>
+          <td><%= row.label %></td>
+        <% else %>
+          <td colspan="4" class="text-muted">No versions set: every version works and nobody is asked to update.</td>
+        <% end %>
+      </tr>
+    <% end %>
+  </tbody>
+</table>
+
+<div class="row">
+  <% app_versions.each do |platform, app_version| %>
+    <div class="col-lg-4 mb-4">
+      <div class="card">
+        <div class="card-body">
+          <h5 class="card-title"><%= app_version.label %></h5>
+          <%= form_with model: app_version, scope: :app_version, url: admin_admin_native_app_version_path(platform), method: :patch,
+                        local: true, namespace: platform, html: { id: "app-version-#{platform}" } do |f| %>
+            <% if app_version.errors[:base].any? || app_version.errors[:platform].any? %>
+              <div class="alert alert-danger">
+                <% (app_version.errors.full_messages_for(:base) + app_version.errors.full_messages_for(:platform)).each do |message| %>
+                  <div><%= message %></div>
+                <% end %>
+              </div>
+            <% end %>
+            <% [[:minimum_version, 'Minimum version', "Below the minimum, the app can't be used until it's updated."],
+                [:recommended_version, 'Recommended version', 'Below the recommended version, people are asked, not forced, to update.']].each do |attr, label, hint| %>
+              <div class="form-group">
+                <%= f.label attr, label %>
+                <%= f.text_field attr, class: "form-control#{' is-invalid' if app_version.errors[attr].any?}", placeholder: '1.2.3',
+                                       autocomplete: 'off', spellcheck: false %>
+                <% app_version.errors.full_messages_for(attr).each do |message| %>
+                  <div class="invalid-feedback d-block"><%= message %></div>
+                <% end %>
+                <small class="form-text text-muted"><%= hint %></small>
+              </div>
+            <% end %>
+            <div class="form-group">
+              <%= f.label :update_url, 'Update link' %>
+              <%= f.url_field :update_url, class: "form-control#{' is-invalid' if app_version.errors[:update_url].any?}",
+                                           placeholder: platform == 'android' ? 'https://play.google.com/store/apps/details?id=…' : 'https://apps.apple.com/app/id…' %>
+              <% app_version.errors.full_messages_for(:update_url).each do |message| %>
+                <div class="invalid-feedback d-block"><%= message %></div>
+              <% end %>
+              <small class="form-text text-muted">Where the Update button goes: an App Store, TestFlight or Play link.</small>
+            </div>
+            <% if app_version.app_store_checked? %>
+              <div class="form-group form-check">
+                <%= f.check_box :allow_ahead_of_store, class: 'form-check-input' %>
+                <%= f.label :allow_ahead_of_store, 'Allow ahead of the App Store', class: 'form-check-label' %>
+                <small class="form-text text-muted">
+                  <% if SpreeAdminNative.config.ios_bundle_id.present? %>
+                    Versions are checked against what the App Store serves for <%= SpreeAdminNative.config.ios_bundle_id %>. Tick this for a version in review or on TestFlight.
+                  <% else %>
+                    No App Store check: the gem's <code>ios_bundle_id</code> isn't set.
+                  <% end %>
+                </small>
+              </div>
+            <% end %>
+            <%= f.submit 'Save', class: 'btn btn-primary' %>
+          <% end %>
+          <% if app_version.persisted? %>
+            <%= button_to 'Clear', admin_admin_native_app_version_path(platform), method: :delete, class: 'btn btn-sm btn-outline-danger mt-2',
+                          form: { id: "app-version-#{platform}-clear" },
+                          data: { confirm: "Clear the #{app_version.label} app versions?" } %>
+          <% end %>
+        </div>
+      </div>
+    </div>
+  <% end %>
+</div>

@@ -3,10 +3,10 @@ import { shouldRetry } from '@instincts/spree-sdk';
 import { MutationCache, QueryCache, QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { createTRPCClient, localLink } from '@trpc/client';
 import { createTRPCContext } from '@trpc/tanstack-react-query';
-import { type ReactNode, useEffect, useRef, useState } from 'react';
+import { type ReactNode, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { reportApiError } from '@/observability/sentry';
 
-export const { TRPCProvider, useTRPC } = createTRPCContext<AppRouter>();
+export const { TRPCProvider, useTRPC, useTRPCClient } = createTRPCContext<AppRouter>();
 
 /**
  * The router runs inside the app (ADR 0002). Each call reads the current session from a ref,
@@ -32,7 +32,10 @@ export function ApiProvider({
   useEffect(() => {
     onAuthErrorRef.current = onAuthError;
   }, [onAuthError]);
-  useEffect(() => {
+  // A layout effect, so the new session is in place before any child's effects run: a child that
+  // calls the client from an effect right after sign-in (the version gate) would otherwise send
+  // the previous session, null, and be refused.
+  useLayoutEffect(() => {
     sessionRef.current = session;
   }, [session]);
 

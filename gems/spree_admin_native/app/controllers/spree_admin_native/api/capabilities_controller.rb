@@ -26,6 +26,8 @@ module SpreeAdminNative
         list += %w[promotions.read promotions.write] if Spree::Promotion.column_names.include?('code')
         # Host-described admin types (menus, push notifications…); the app reads GET resources.
         list << 'admin.resources' if SpreeAdminNative.resources.any?
+        # The app version gate (GET app_version).
+        list << 'app.versionGate' if AppVersion.enabled?
         list + SpreeAdminNative.config.extra_capabilities
       end
 

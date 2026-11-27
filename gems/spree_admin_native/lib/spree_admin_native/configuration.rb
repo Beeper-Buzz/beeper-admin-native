@@ -9,6 +9,10 @@ module SpreeAdminNative
     attr_accessor :expose_versions
     # Let YAML columns load BigDecimal (Spree's decimal calculator settings). See engine.rb.
     attr_accessor :permit_bigdecimal_yaml
+    # The admin app's bundle id, for the App Store check on app versions (nil skips the check).
+    attr_accessor :ios_bundle_id
+    # The app version gate (admin page section, GET app_version, app.versionGate); false turns it off.
+    attr_accessor :app_version_gate
 
     def initialize
       @expo_push_url = ENV.fetch('SPREE_ADMIN_NATIVE_EXPO_PUSH_URL', 'https://exp.host/--/api/v2/push/send')
@@ -18,6 +22,8 @@ module SpreeAdminNative
       @extra_capabilities = []
       @expose_versions = true
       @permit_bigdecimal_yaml = true
+      @ios_bundle_id = nil
+      @app_version_gate = true
     end
   end
 end

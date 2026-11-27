@@ -40,9 +40,10 @@ module SpreeAdminNative
         Spree::Order.include(SpreeAdminNative::OrderNotifications)
       end
 
-      # The pairing page needs Spree's Rails admin (4.x spree_backend, 5.x spree_admin).
+      # The admin app page (pairing, app versions) needs Spree's Rails admin (4.x spree_backend, 5.x spree_admin).
       if 'Spree::Admin::BaseController'.safe_constantize
         load File.expand_path('admin_devices_controller.rb', __dir__)
+        load File.expand_path('admin_app_versions_controller.rb', __dir__)
       end
     end
   end
