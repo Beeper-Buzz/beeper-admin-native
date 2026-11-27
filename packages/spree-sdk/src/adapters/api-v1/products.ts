@@ -1,5 +1,6 @@
 import type { Page, Product } from '@instincts/spree-domain';
-import { isSpreeError, SpreeError } from '../../errors';
+import type { CompanionPort } from '../../companion';
+import { isSpreeError, SpreeError, unsupported } from '../../errors';
 import type { ListProductsParams, ProductsPort, ProductUpdate, VariantUpdate } from '../../ports';
 import type { QueryObject } from '../../query';
 import type { Transport } from '../../transport';
@@ -18,7 +19,7 @@ const BASE = '/api/v1/products';
  */
 export const V1_NO_CACHE = { 'Cache-Control': 'no-cache' } as const;
 /** Without this, update and get can't see discontinued (archived) products. */
-const SHOW_ARCHIVED = { show_discontinued: 1 } as const;
+export const SHOW_ARCHIVED = { show_discontinued: 1 } as const;
 /** Server pages a status-filtered list reads before returning what it has found. */
 export const V1_MAX_SCAN_PAGES = 5;
 
@@ -70,28 +71,33 @@ async function stockLocationId(transport: Transport): Promise<number> {
   return location.id;
 }
 
+/** The raw product, and whether only the archived lookup found it. Accepts an id or a slug. */
+export async function fetchV1Product(
+  transport: Transport,
+  id: string,
+): Promise<{ raw: V1Product; archived: boolean }> {
+  const path = `${BASE}/${enc(id)}`;
+  try {
+    return {
+      raw: (await transport.request<V1Product>({ path, headers: V1_NO_CACHE })).data,
+      archived: false,
+    };
+  } catch (e) {
+    if (!isSpreeError(e) || e.kind !== 'notFound') throw e;
+  }
+  const res = await transport.request<V1Product>({
+    path,
+    query: { ...SHOW_ARCHIVED, show_deleted: 1 },
+    headers: V1_NO_CACHE,
+  });
+  return { raw: res.data, archived: true };
+}
+
 /** API v1 (Spree 4.2–4.3). Status is derived from available_on / discontinue_on (FINDINGS.md §g). */
-export function apiV1Products(transport: Transport): ProductsPort {
+export function apiV1Products(transport: Transport, companion?: CompanionPort): ProductsPort {
   const currency = storeCurrency(transport);
 
-  /** The raw product, and whether only the archived lookup found it. Accepts an id or a slug. */
-  async function fetchRaw(id: string): Promise<{ raw: V1Product; archived: boolean }> {
-    const path = `${BASE}/${enc(id)}`;
-    try {
-      return {
-        raw: (await transport.request<V1Product>({ path, headers: V1_NO_CACHE })).data,
-        archived: false,
-      };
-    } catch (e) {
-      if (!isSpreeError(e) || e.kind !== 'notFound') throw e;
-    }
-    const res = await transport.request<V1Product>({
-      path,
-      query: { ...SHOW_ARCHIVED, show_deleted: 1 },
-      headers: V1_NO_CACHE,
-    });
-    return { raw: res.data, archived: true };
-  }
+  const fetchRaw = (id: string) => fetchV1Product(transport, id);
 
   /** Which of these (all listed with show_discontinued) the default scope hides: the archived ones. */
   async function archivedIds(products: V1Product[]): Promise<Set<number>> {
@@ -108,6 +114,28 @@ export function apiV1Products(transport: Transport): ProductsPort {
   const port: ProductsPort = {
     async list(params: ListProductsParams): Promise<Page<Product>> {
       const perPage = params.perPage ?? 25;
+      if (params.lowStock) {
+        // v1 can't filter on stock; the companion gem lists the products (lowest first).
+        if (!companion) throw unsupported('inventory.lowStock');
+        const page = params.cursor ? Number(params.cursor) || 1 : 1;
+        const [low, cur] = await Promise.all([companion.lowStockProducts(page, perPage), currency()]);
+        if (low.rows.length === 0) return { items: [], nextCursor: null, totalCount: low.totalCount };
+        const res = await transport.request<V1ProductList>({
+          path: BASE,
+          query: { ids: low.rows.map((r) => r.productId).join(','), per_page: low.rows.length },
+          headers: V1_NO_CACHE,
+        });
+        const byId = new Map(res.data.products.map((p) => [String(p.id), p]));
+        const items = low.rows.flatMap((r) => {
+          const raw = byId.get(r.productId);
+          return raw ? [mapV1Product(raw, { currency: cur })] : [];
+        });
+        return {
+          items,
+          nextCursor: page * perPage < low.totalCount ? String(page + 1) : null,
+          totalCount: low.totalCount,
+        };
+      }
       const status = params.status ?? 'all';
       const { page, skip } = parseV1Cursor(params.cursor);
       const now = Date.now();

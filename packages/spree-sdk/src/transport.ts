@@ -4,7 +4,8 @@ import { encodeQuery, type QueryObject } from './query';
 export interface FetchInit {
   method: string;
   headers: Record<string, string>;
-  body?: string;
+  /** JSON text, or multipart form data (file uploads). */
+  body?: string | FormData;
   signal?: AbortSignal;
   credentials?: 'include' | 'omit' | 'same-origin';
 }
@@ -32,6 +33,7 @@ export interface TransportRequest {
   method?: 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE';
   path: string;
   query?: QueryObject;
+  /** Sent as JSON, except a `FormData`, which is sent as multipart with fetch's own boundary. */
   body?: unknown;
   headers?: Record<string, string>;
   /** `none` sends no auth headers (probes, login). Default `default`. */
@@ -75,8 +77,12 @@ export function createTransport(options: TransportOptions): Transport {
       ...(req.auth !== 'none' && options.auth ? await options.auth.headers() : {}),
       ...req.headers,
     };
-    let body: string | undefined;
-    if (req.body !== undefined) {
+    let body: string | FormData | undefined;
+    if (isFormData(req.body)) {
+      // fetch sets multipart/form-data with the boundary; a Content-Type set here would lose it.
+      delete headers['Content-Type'];
+      body = req.body;
+    } else if (req.body !== undefined) {
       headers['Content-Type'] ??= 'application/json';
       body = JSON.stringify(req.body);
     }
@@ -145,6 +151,10 @@ export function createTransport(options: TransportOptions): Transport {
     },
   };
   return transport;
+}
+
+function isFormData(value: unknown): value is FormData {
+  return typeof FormData !== 'undefined' && value instanceof FormData;
 }
 
 async function readBody(res: Response): Promise<{ ok: boolean; value: unknown }> {

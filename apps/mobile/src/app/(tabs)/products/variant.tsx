@@ -1,9 +1,9 @@
-import { layout, radius, space } from '@instincts/spree-ui';
+import { radius, space } from '@instincts/spree-ui';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { Pressable, ScrollView, View } from 'react-native';
-import { Button, EmptyState, Screen, TextField } from '@/components/primitives';
+import { Pressable, View } from 'react-native';
+import { Button, EmptyState, Screen, Sheet, TextField } from '@/components/primitives';
 import { Label, Text } from '@/components/text';
 import { useProductSaved } from '@/products/products';
 import { useCan } from '@/session/session';
@@ -93,103 +93,98 @@ export default function VariantSheet() {
   const step = (by: number) => setStock((s) => String(Math.max(0, (Number(s) || 0) + by)));
 
   return (
-    <Screen>
-      <ScrollView
-        contentContainerStyle={{ padding: layout.gutter, gap: space[4] }}
-        keyboardShouldPersistTaps="handled"
-      >
-        <Text size="title2" font="display" numberOfLines={2}>
-          {variant.optionsText || product.name}
-        </Text>
-        {canPrice ? (
-          <>
-            <View style={{ flexDirection: 'row', gap: space[3] }}>
-              <View style={{ flex: 1 }}>
-                <TextField
-                  label={`Price${currency ? ` (${currency})` : ''}`}
-                  value={price}
-                  onChangeText={setPrice}
-                  keyboardType="decimal-pad"
-                  error={priceError}
-                />
-              </View>
-              <View style={{ flex: 1 }}>
-                <TextField
-                  label="Compare-at price"
-                  value={compareAt}
-                  onChangeText={setCompareAt}
-                  keyboardType="decimal-pad"
-                  error={compareError}
-                  placeholder="Optional"
-                />
-              </View>
+    <Sheet>
+      <Text size="title2" font="display" numberOfLines={2}>
+        {variant.optionsText || product.name}
+      </Text>
+      {canPrice ? (
+        <>
+          <View style={{ flexDirection: 'row', gap: space[3] }}>
+            <View style={{ flex: 1 }}>
+              <TextField
+                label={`Price${currency ? ` (${currency})` : ''}`}
+                value={price}
+                onChangeText={setPrice}
+                keyboardType="decimal-pad"
+                error={priceError}
+              />
             </View>
-            <TextField
-              label="SKU"
-              value={sku}
-              onChangeText={setSku}
-              autoCapitalize="characters"
-              autoCorrect={false}
-            />
-          </>
-        ) : null}
-        {canStock && variant.totalOnHand !== null ? (
-          <View style={{ gap: space[2] }}>
-            <Label>On hand</Label>
-            <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: space[2] }}>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="One less"
-                onPress={() => step(-1)}
-                style={{
-                  padding: space[3],
-                  borderRadius: radius.badge,
-                  borderWidth: 1,
-                  borderColor: colors.line,
-                }}
-              >
-                <Text font="uiSemibold">−</Text>
-              </Pressable>
-              <View style={{ flex: 1 }}>
-                <TextField
-                  label="Stock count"
-                  value={stock}
-                  onChangeText={setStock}
-                  keyboardType="number-pad"
-                  error={stockError}
-                />
-              </View>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="One more"
-                onPress={() => step(1)}
-                style={{
-                  padding: space[3],
-                  borderRadius: radius.badge,
-                  borderWidth: 1,
-                  borderColor: colors.line,
-                }}
-              >
-                <Text font="uiSemibold">+</Text>
-              </Pressable>
+            <View style={{ flex: 1 }}>
+              <TextField
+                label="Compare-at price"
+                value={compareAt}
+                onChangeText={setCompareAt}
+                keyboardType="decimal-pad"
+                error={compareError}
+                placeholder="Optional"
+              />
             </View>
-            <Text size="footnote" tone="muted">
-              Sets the count at your default stock location.
-            </Text>
           </View>
-        ) : null}
-        {error ? (
-          <Text size="footnote" tone="critical" accessibilityLiveRegion="polite">
-            {error}
+          <TextField
+            label="SKU"
+            value={sku}
+            onChangeText={setSku}
+            autoCapitalize="characters"
+            autoCorrect={false}
+          />
+        </>
+      ) : null}
+      {canStock && variant.totalOnHand !== null ? (
+        <View style={{ gap: space[2] }}>
+          <Label>On hand</Label>
+          <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: space[2] }}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="One less"
+              onPress={() => step(-1)}
+              style={{
+                padding: space[3],
+                borderRadius: radius.badge,
+                borderWidth: 1,
+                borderColor: colors.line,
+              }}
+            >
+              <Text font="uiSemibold">−</Text>
+            </Pressable>
+            <View style={{ flex: 1 }}>
+              <TextField
+                label="Stock count"
+                value={stock}
+                onChangeText={setStock}
+                keyboardType="number-pad"
+                error={stockError}
+              />
+            </View>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="One more"
+              onPress={() => step(1)}
+              style={{
+                padding: space[3],
+                borderRadius: radius.badge,
+                borderWidth: 1,
+                borderColor: colors.line,
+              }}
+            >
+              <Text font="uiSemibold">+</Text>
+            </Pressable>
+          </View>
+          <Text size="footnote" tone="muted">
+            Sets the count at your default stock location.
           </Text>
-        ) : null}
-        <Button
-          title="Save"
-          loading={busy}
-          disabled={nothing || !!priceError || !!compareError || !!stockError}
-          onPress={save}
-        />
-      </ScrollView>
-    </Screen>
+        </View>
+      ) : null}
+      {error ? (
+        <Text size="footnote" tone="critical" accessibilityLiveRegion="polite">
+          {error}
+        </Text>
+      ) : null}
+      <Button
+        title="Save"
+        loading={busy}
+        disabled={nothing || !!priceError || !!compareError || !!stockError}
+        onPress={save}
+      />
+    </Sheet>
   );
 }

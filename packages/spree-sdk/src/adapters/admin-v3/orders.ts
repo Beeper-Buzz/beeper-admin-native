@@ -4,11 +4,14 @@ import { SpreeError } from '../../errors';
 import type { ListOrdersParams, OrdersPort } from '../../ports';
 import type { QueryObject } from '../../query';
 import type { Transport } from '../../transport';
+import { adminV3DraftOrders } from './draftOrders';
 import { mapOrder } from './mapOrder';
 
 const BASE = '/api/v3/admin/orders';
 const EXPAND =
   'items,fulfillments,fulfillments.delivery_method,fulfillments.stock_location,payments,payments.payment_method,billing_address,shipping_address,customer';
+/** One order also carries its delivery rates, which a draft's shipping choice needs. */
+const DETAIL_EXPAND = `${EXPAND},fulfillments.delivery_rates`;
 
 /** List filters as Ransack `q[...]`. Only placed (complete) orders, newest first. */
 export const V3_FILTERS: Record<OrderListFilter, QueryObject> = {
@@ -64,7 +67,7 @@ export function adminV3Orders(transport: Transport): OrdersPort {
       if (!idOrNumber.includes('_')) {
         const res = await transport.request<PaginatedResponse<V3Order>>({
           path: BASE,
-          query: { q: { number_eq: idOrNumber }, limit: 1, expand: EXPAND },
+          query: { q: { number_eq: idOrNumber }, limit: 1, expand: DETAIL_EXPAND },
         });
         const [order] = res.data.data;
         if (!order)
@@ -73,7 +76,7 @@ export function adminV3Orders(transport: Transport): OrdersPort {
       }
       const res = await transport.request<V3Order>({
         path: `${BASE}/${encodeURIComponent(idOrNumber)}`,
-        query: { expand: EXPAND },
+        query: { expand: DETAIL_EXPAND },
       });
       return mapOrder(res.data);
     },
@@ -119,6 +122,8 @@ export function adminV3Orders(transport: Transport): OrdersPort {
       });
       return res.data.data.map((r) => ({ id: r.id, name: r.name }));
     },
+
+    ...adminV3DraftOrders(transport, (id) => port.get(id), orderId),
   };
   return port;
 }

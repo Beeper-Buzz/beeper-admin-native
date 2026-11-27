@@ -130,6 +130,7 @@ export function mapOrderResource(g: JsonApiGraph, o: Resource): Order {
       stockLocationName: str(g.one(s, 'stock_location'), 'name'),
       cost: money(str(s, 'cost') ?? '0', currency),
       items: [...counts].map(([lineItemId, quantity]) => ({ lineItemId, quantity })),
+      rates: [],
     };
   });
 

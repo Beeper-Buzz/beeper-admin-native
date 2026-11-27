@@ -110,6 +110,11 @@ export function useSession(): SessionApi {
   return s;
 }
 
+/** The connected store's keychain id, for data kept per store (the draft order in progress). */
+export function useStoreId(): string | null {
+  return useSession().state.store?.id ?? null;
+}
+
 /** Whether the connected store supports a capability (`orders.refund`, `promotions.write`…). */
 export function useCan(): (capability: string) => boolean {
   const { state } = useSession();

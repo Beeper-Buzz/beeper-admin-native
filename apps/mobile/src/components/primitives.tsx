@@ -13,6 +13,23 @@ import {
 import { useTheme } from '@/theme/theme';
 import { Text } from './text';
 
+/**
+ * Root of a form sheet (`presentation: 'formSheet'`, `sheetAllowedDetents: 'fitToContents'`):
+ * sized by its content, not the screen, and with no safe-area inset at the top.
+ */
+export function Sheet({ style, ...rest }: ViewProps) {
+  const { colors } = useTheme();
+  return (
+    <View
+      style={[
+        { backgroundColor: colors.bg, padding: layout.gutter, paddingTop: space[5], gap: space[4] },
+        style,
+      ]}
+      {...rest}
+    />
+  );
+}
+
 export function Screen({ style, ...rest }: ViewProps) {
   const { colors } = useTheme();
   return <View style={[{ flex: 1, backgroundColor: colors.bg }, style]} {...rest} />;
@@ -123,6 +140,7 @@ export function Button({
 export function TextField({
   label,
   error,
+  style,
   ...rest
 }: TextInputProps & { label: string; error?: string | null }) {
   const { colors, fonts } = useTheme();
@@ -142,6 +160,8 @@ export function TextField({
             color: colors.ink,
             fontFamily: fonts.ui,
           },
+          // Callers add to the input's look (e.g. a taller multiline field); they never replace it.
+          style,
         ]}
         {...rest}
       />

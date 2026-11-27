@@ -48,7 +48,8 @@ class SpreeAdminNativeIntegrationTest < Minitest::Test
     assert_equal 200, last_response.status
     assert_includes json['api_families'], 'api-v1'
     assert_includes json['capabilities'], 'notifications.push'
-    %w[orders.refund promotions.read promotions.write].each { |c| assert_includes json['capabilities'], c }
+    %w[orders.refund promotions.read promotions.write inventory.lowStock media.library].each { |c| assert_includes json['capabilities'], c }
+    %w[orders.refund orders.create promotions.read promotions.write inventory.lowStock].each { |c| assert_includes json['capabilities'], c }
     assert_includes json['auth_methods'], 'pairing'
     assert_equal SpreeAdminNative::VERSION, json['gem_version']
   end
@@ -225,12 +226,13 @@ class SpreeAdminNativeIntegrationTest < Minitest::Test
 
   def test_refund_over_the_paid_amount_is_refused
     payment = refundable_payment
+    refunds_before = payment.refunds.count
     header 'X-Spree-Token', pair!
     json_post "/api/admin_native/v1/orders/#{payment.order.number}/payments/#{payment.number}/refunds",
               amount: (payment.credit_allowed + 1).to_s
     assert_equal 422, last_response.status
     assert_equal 'invalid', json.dig('error', 'code')
-    assert_equal 0, payment.refunds.count
+    assert_equal refunds_before, payment.refunds.count
   end
 
   def test_refund_needs_an_amount_and_a_known_payment
@@ -324,5 +326,213 @@ class SpreeAdminNativeIntegrationTest < Minitest::Test
           'CONTENT_TYPE' => 'application/json'
     assert_equal 200, last_response.status
     assert_equal 'Free shipping weekend', json.dig('data', 'name')
+  end
+
+  # --- 0.3: low stock ---------------------------------------------------------------------
+
+  def make_product(name, stock, options: false, track: true, discontinued: false)
+    product = Spree::Product.create!(name: name, price: 10, shipping_category: Spree::ShippingCategory.first,
+                                     available_on: 1.day.ago)
+    product.update_column(:discontinue_on, 1.day.ago) if discontinued
+    location = Spree::StockLocation.first
+    variants = if options
+                 option_type = Spree::OptionType.first || Spree::OptionType.create!(name: 'size', presentation: 'Size')
+                 product.option_types << option_type unless product.option_types.include?(option_type)
+                 stock.each_with_index.map do |_, i|
+                   value = option_type.option_values.create!(name: "#{name}-#{i}", presentation: "#{name} #{i}")
+                   product.variants.create!(option_values: [value], price: 10, track_inventory: track)
+                 end
+               else
+                 product.master.update!(track_inventory: track)
+                 [product.master]
+               end
+    variants.zip(stock).each { |v, n| location.stock_item_or_create(v).update_columns(count_on_hand: n) }
+    product.master.stock_items.update_all(count_on_hand: 0) if options
+    [product, variants]
+  end
+
+  def low_stock_ids
+    get '/api/admin_native/v1/low_stock', per_page: 100
+    assert_equal 200, last_response.status, last_response.body
+    json['data'].map { |r| r['product_id'] }
+  end
+
+  def test_low_stock_lists_sellable_tracked_variants_of_live_products
+    low, = make_product('LS low', [1])
+    fine, = make_product('LS fine', [50])
+    with_options, = make_product('LS sizes', [0, 30], options: true)
+    untracked, = make_product('LS untracked', [0], track: false)
+    retired, = make_product('LS retired', [0], discontinued: true)
+    header 'X-Spree-Token', pair!
+    ids = low_stock_ids
+    assert_includes ids, low.id.to_s
+    assert_includes ids, with_options.id.to_s
+    [fine, untracked, retired].each { |p| refute_includes ids, p.id.to_s }
+    row = json['data'].find { |r| r['product_id'] == with_options.id.to_s }
+    assert_equal 1, row['low_variants'], 'the master of a product with options is not counted'
+    assert_equal 2, json.dig('meta', 'threshold')
+  end
+
+  def test_low_stock_sums_stock_across_locations
+    product, variants = make_product('LS two places', [1])
+    variant = variants.first
+    second = Spree::StockLocation.create!(name: 'Second warehouse', country: Spree::Country.first)
+    second.stock_item_or_create(variant).update_columns(count_on_hand: 10)
+    header 'X-Spree-Token', pair!
+    refute_includes low_stock_ids, product.id.to_s
+  end
+
+  def test_summary_counts_the_same_variants_the_list_shows
+    make_product('LS a', [0])
+    make_product('LS b', [1, 2], options: true)
+    header 'X-Spree-Token', pair!
+    get '/api/admin_native/v1/summary'
+    count = json['low_stock_variants']
+    get '/api/admin_native/v1/low_stock', per_page: 100
+    assert_equal count, json['data'].sum { |r| r['low_variants'] }
+    assert_operator count, :>=, 3
+  end
+
+  def test_low_stock_needs_an_admin
+    get '/api/admin_native/v1/low_stock'
+    assert_equal 401, last_response.status
+  end
+
+  # --- 0.3: media library -----------------------------------------------------------------
+
+  # A 2x2 PNG, so Spree's content-type check accepts the attachment.
+  def png
+    chunk = ->(type, data) { [data.bytesize].pack('N') + type + data + [Zlib.crc32(type + data)].pack('N') }
+    raw = ("\x00".b + "\x0a\x14\x1e".b * 2) * 2
+    "\x89PNG\r\n\x1a\n".b + chunk.call('IHDR'.b, [2, 2, 8, 2, 0, 0, 0].pack('NNCCCCC')) +
+      chunk.call('IDAT'.b, Zlib::Deflate.deflate(raw)) + chunk.call('IEND'.b, ''.b)
+  end
+
+  def add_image(variant, alt: nil, at: Time.current)
+    image = Spree::Image.new(viewable: variant, alt: alt)
+    image.attachment.attach(io: StringIO.new(png), filename: 'test.png', content_type: 'image/png')
+    image.save!
+    image.update_column(:created_at, at)
+    image
+  end
+
+  def media(params = {})
+    get '/api/admin_native/v1/media', { per_page: 100 }.merge(params)
+    assert_equal 200, last_response.status, last_response.body
+    json
+  end
+
+  def test_media_needs_an_admin
+    get '/api/admin_native/v1/media'
+    assert_equal 401, last_response.status
+  end
+
+  def test_media_lists_product_and_variant_images_newest_first_with_urls
+    product, variants = make_product('ML zebra lamp', [5, 5], options: true)
+    on_master = add_image(product.master, alt: 'Front', at: 2.minutes.ago)
+    on_variant = add_image(variants.first, at: 1.minute.ago)
+    header 'X-Spree-Token', pair!
+    body = media(q: 'Zebra Lamp')
+    assert_equal [on_variant.id.to_s, on_master.id.to_s], body['data'].map { |r| r['id'] }
+    assert_equal 2, body.dig('meta', 'total_count')
+    variant_row, master_row = body['data']
+    assert_equal product.id.to_s, master_row['product_id']
+    assert_equal 'ML zebra lamp', master_row['product_name']
+    assert_nil master_row['variant_id'], 'master images show for every variant'
+    assert_equal 'Front', master_row['alt']
+    assert_equal 1, master_row['position']
+    assert_equal variants.first.id.to_s, variant_row['variant_id']
+    assert_nil variant_row['alt']
+    %w[mini_url product_url large_url].each do |key|
+      assert master_row[key].start_with?('http://localhost/rails/active_storage/representations/'), master_row[key]
+    end
+  end
+
+  def test_media_searches_by_sku_and_filters_missing_alt
+    product, = make_product('ML quokka mug', [5])
+    product.master.update!(sku: 'QUOKKA-MUG-1')
+    described = add_image(product.master, alt: 'A mug', at: 2.minutes.ago)
+    blank = add_image(product.master, alt: '  ', at: 1.minute.ago)
+    header 'X-Spree-Token', pair!
+    assert_equal [blank.id.to_s, described.id.to_s], media(q: 'quokka-mug')['data'].map { |r| r['id'] }
+    assert_equal [blank.id.to_s], media(q: 'QUOKKA', missing_alt: 'true')['data'].map { |r| r['id'] }
+    assert_nil json['data'].first['alt'], 'blank alt text reads as none'
+  end
+
+  def test_media_leaves_out_deleted_products_and_pages
+    product, = make_product('ML okapi rug', [5])
+    3.times { |i| add_image(product.master, at: (i + 1).minutes.ago) }
+    gone, = make_product('ML okapi gone', [5])
+    add_image(gone.master)
+    gone.destroy
+    header 'X-Spree-Token', pair!
+    first = media(q: 'okapi', per_page: 2, page: 1)
+    assert_equal 3, first.dig('meta', 'total_count')
+    assert_equal 2, first['data'].size
+    second = media(q: 'okapi', per_page: 2, page: 2)
+    assert_equal 1, second['data'].size
+    assert_equal [product.id.to_s], (first['data'] + second['data']).map { |r| r['product_id'] }.uniq
+  end
+
+  # --- 0.3: order creation on API v1 ------------------------------------------------------
+
+  def staff_draft(created_by: @admin)
+    order = Spree::Order.create!(email: 'draft@example.com', store: Spree::Store.default, created_by: created_by)
+    variant = Spree::Variant.where(is_master: false).first
+    Spree::Cart::AddItem.call(order: order, variant: variant, quantity: 1)
+    order
+  end
+
+  def test_payment_methods_are_the_ones_without_a_card
+    get '/api/admin_native/v1/payment_methods'
+    assert_equal 401, last_response.status
+
+    store = { stores: [Spree::Store.default] }
+    cash = Spree::PaymentMethod::Check.create!(name: 'Cash (back office)', display_on: 'back_end', active: true, **store)
+    online = Spree::PaymentMethod::Check.create!(name: 'Pay later (storefront)', display_on: 'front_end', active: true, **store)
+    off = Spree::PaymentMethod::Check.create!(name: 'Old check', display_on: 'both', active: false, **store)
+    elsewhere = Spree::PaymentMethod::Check.create!(name: 'Other shop cash', display_on: 'both', active: true)
+    header 'X-Spree-Token', pair!
+    get '/api/admin_native/v1/payment_methods'
+    assert_equal 200, last_response.status, last_response.body
+    names = json['data'].map { |m| m['name'] }
+    assert_includes names, 'Check'
+    assert_includes names, cash.name
+    [online.name, off.name, elsewhere.name, 'Credit Card', 'Store Credit'].each { |n| refute_includes names, n }
+    assert_equal cash.id.to_s, json['data'].find { |m| m['name'] == cash.name }['id']
+  end
+
+  def test_a_staff_draft_can_be_deleted
+    order = staff_draft
+    header 'X-Spree-Token', pair!
+    delete "/api/admin_native/v1/orders/#{order.number}"
+    assert_equal 204, last_response.status, last_response.body
+    refute Spree::Order.exists?(order.id)
+    assert_equal 0, Spree::LineItem.where(order_id: order.id).count
+  end
+
+  def test_placed_orders_and_shopper_carts_are_not_deleted
+    header 'X-Spree-Token', pair!
+    placed = Spree::Order.complete.first
+    delete "/api/admin_native/v1/orders/#{placed.number}"
+    assert_equal 422, last_response.status
+    assert_equal 'order_placed', json.dig('error', 'code')
+
+    shopper = Spree.user_class.where.not(id: @admin.id).detect { |u| !u.has_spree_role?(:admin) }
+    cart = staff_draft(created_by: shopper)
+    delete "/api/admin_native/v1/orders/#{cart.number}"
+    assert_equal 422, last_response.status
+    assert_equal 'not_a_draft', json.dig('error', 'code')
+    assert Spree::Order.exists?(cart.id)
+
+    delete '/api/admin_native/v1/orders/R000NOPE'
+    assert_equal 404, last_response.status
+  end
+
+  def test_deleting_drafts_needs_an_admin
+    order = staff_draft
+    delete "/api/admin_native/v1/orders/#{order.number}"
+    assert_equal 401, last_response.status
+    assert Spree::Order.exists?(order.id)
   end
 end

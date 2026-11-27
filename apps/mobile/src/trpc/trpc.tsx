@@ -4,6 +4,7 @@ import { MutationCache, QueryCache, QueryClient, QueryClientProvider } from '@ta
 import { createTRPCClient, localLink } from '@trpc/client';
 import { createTRPCContext } from '@trpc/tanstack-react-query';
 import { type ReactNode, useEffect, useRef, useState } from 'react';
+import { reportApiError } from '@/observability/sentry';
 
 export const { TRPCProvider, useTRPC } = createTRPCContext<AppRouter>();
 
@@ -39,11 +40,18 @@ export function ApiProvider({
     () =>
       new QueryClient({
         // Only signed-in requests can fail with `auth`; sign-in mistakes surface as their own errors.
+        // Server errors also go to Sentry (observability/sentry.ts decides which are defects).
         queryCache: new QueryCache({
-          onError: (e) => isAuthError(e) && sessionRef.current && onAuthErrorRef.current?.(),
+          onError: (e) => {
+            reportApiError(e);
+            if (isAuthError(e) && sessionRef.current) onAuthErrorRef.current?.();
+          },
         }),
         mutationCache: new MutationCache({
-          onError: (e) => isAuthError(e) && sessionRef.current && onAuthErrorRef.current?.(),
+          onError: (e) => {
+            reportApiError(e);
+            if (isAuthError(e) && sessionRef.current) onAuthErrorRef.current?.();
+          },
         }),
         defaultOptions: {
           queries: {

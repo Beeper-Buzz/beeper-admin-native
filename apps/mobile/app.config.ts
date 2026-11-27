@@ -28,6 +28,8 @@ const sentryPlugin: [string, Record<string, string>][] =
       ]
     : [];
 
+const CAMERA_PERMISSION = 'Scan pairing codes from your store admin and take product photos.';
+
 export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
   name: distribution.name,
@@ -61,9 +63,15 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     'expo-router',
     'expo-secure-store',
     'expo-font',
+    // expo-camera and expo-image-picker both write the camera prompt; keep their wording the same.
+    ['expo-camera', { cameraPermission: CAMERA_PERMISSION, recordAudioAndroid: false }],
     [
-      'expo-camera',
-      { cameraPermission: 'Scan the pairing code shown in your Spree admin.', recordAudioAndroid: false },
+      'expo-image-picker',
+      {
+        cameraPermission: CAMERA_PERMISSION,
+        photosPermission: 'Choose photos from your library to add to your products.',
+        microphonePermission: false,
+      },
     ],
     ['expo-notifications', { color: distribution.brandColor }],
     [

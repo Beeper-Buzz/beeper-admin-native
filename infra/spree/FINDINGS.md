@@ -566,3 +566,227 @@ Pretty-printed afterwards. The secret scan from §e found nothing in them.
   `orders.capture` skips and the 6.0 "filters unpaid orders" test fails for
   want of an unpaid order. `node scripts/spree-up.mjs all --reset` restores
   the seed (and issues new API keys).
+
+## h. Product photos and the media library (2026-11-27)
+
+Established live on both stores with curl, then proven by
+`packages/spree-sdk/contract/media.contract.ts` (upload, alt text, reorder, variant, store-wide
+list, delete; the test deletes what it uploads). Neither seed has product images, so every
+photo on a store is one somebody uploaded.
+
+### 4.2: API v1 images
+
+```sh
+curl -s -H "X-Spree-Token: $KEY42" -F "image[attachment]=@red.png;type=image/png" -F "image[alt]=Front" \
+  "$B42/api/v1/products/2/images"                                       # 201, on the master
+curl -s -H "X-Spree-Token: $KEY42" -F "image[attachment]=@red.png;type=image/png" \
+  "$B42/api/v1/variants/118/images"                                     # 201, on variant 118
+curl -s -X PUT -H "X-Spree-Token: $KEY42" -H 'Content-Type: application/json' \
+  -d '{"image":{"position":1,"alt":"Back"}}' "$B42/api/v1/products/2/images/2"
+curl -s -X PUT -H "X-Spree-Token: $KEY42" -H 'Content-Type: application/json' \
+  -d '{"image":{"viewable_id":118}}' "$B42/api/v1/products/2/images/1"  # moves it to the variant
+curl -s -X DELETE -H "X-Spree-Token: $KEY42" "$B42/api/v1/variants/118/images/3"   # 204
+```
+
+- **`/products/:id/images` is the master's images only.** `index`, `update` and `destroy` look
+  the image up in `product.images` (delegated to the master), so a variant's image is **404**
+  there and has to go through `/api/v1/variants/:variant_id/images/:id`. The product show
+  (`GET /api/v1/products/:id`) has both: `master.images` and `variants[].images`, each with
+  `id`, `position`, `alt`, `viewable_id` and `mini_url` … `large_url`. The adapter reads the
+  gallery from the product show (with `Cache-Control: no-cache`, §g) and picks the endpoint
+  from the image's `viewable_id`.
+- **An image belongs to one variant.** "Shown for all variants" means on the master. Changing
+  the variant is `image[viewable_id]`; the image lands at the end of its new list.
+- **Positions count per variant** (`acts_as_list scope: [:viewable_id, :viewable_type]`). The
+  app shows the master's images first, then each variant's, and only moves an image among its
+  own variant's images (it explains this when asked to move one past another variant's).
+  Setting `image[position]` to the neighbour's position is the whole move: acts_as_list shifts
+  the images in between.
+- **Only JPEG, PNG and GIF** (`accepted_image_types`); anything else (an `image/heic` upload, live) is 422
+  `{"errors":{"attachment":["has not allowed content type"]}}`. A missing file is 422
+  `{"errors":{"attachment":["must be present"]}}`. The app re-encodes every photo as JPEG.
+- URLs are absolute Active Storage representation redirects; they resolve without auth (200
+  `image/png` after the redirect). `attachment_file_name` and `attachment_content_type` are
+  null on Active Storage images. Images controller responses are `private, must-revalidate`
+  (unlike product reads).
+- **No store-wide list.** There is no `/api/v1/images`, and product Ransack can't filter on
+  images. Without the gem the adapter pages through products (`show_discontinued=1`, name or
+  SKU search) and flattens their galleries, filtering missing alt text itself (cursor
+  `"<page>:<images read>"`, up to five server pages per call). The companion gem 0.3 adds
+  `GET /api/admin_native/v1/media?q=&missing_alt=1&page=&per_page=`: every image on live
+  variants of live products, newest first, product name or SKU search, blank alt (`NULL` or
+  whitespace) filter, `total_count`, and capability `media.library`. A gem without the endpoint
+  answers 404 (via 4.x's `/api/v1` redirect) and the adapter falls back to the scan.
+
+### 6.0: Admin API v3 media
+
+```sh
+curl -s -H "X-Spree-Api-Key: $KEY60" -F "file=@red.png;type=image/png" -F filename=red.png \
+  -F content_type=image/png "$B60/api/v3/admin/files"                   # 201 {"signed_id":"…","expires_at":…}
+curl -s -X POST -H "X-Spree-Api-Key: $KEY60" -H 'Content-Type: application/json' \
+  -d '{"signed_id":"…","alt":"Front","variant_ids":["variant_Aks1igzRC6"]}' \
+  "$B60/api/v3/admin/products/prod_s18jaGonyx/media"                  # 201, appended (position n+1)
+curl -s -X PATCH -H "X-Spree-Api-Key: $KEY60" -H 'Content-Type: application/json' \
+  -d '{"position":1}' "$B60/api/v3/admin/products/prod_s18jaGonyx/media/media_gbHJdmfrXB"
+curl -sg -H "X-Spree-Api-Key: $KEY60" "$B60/api/v3/admin/media?q[attached]=1&q[alt_blank]=1"
+```
+
+- **Spree 6.0.6 drops a multipart `attachment` on the media endpoint.** The request schema
+  documents it ("The file itself, sent as multipart form data"), but `media_attributes` removes
+  `attachment` before building the row, so `-F attachment=@…` (top-level or `media[attachment]`)
+  is 422 "Attachment can't be blank". Upload to `POST /api/v3/admin/files` (multipart `file`,
+  `filename`, `content_type`; the floor scope is `write_products`) and create the media with its
+  `signed_id`, which expires after a day.
+- Nested routes are `index`, `create`, `update` and `destroy` only (no `show`). The product's
+  list includes legacy media still on the default variant. Media rows carry `media_type`
+  (`image`, `video`, `external_video`); the app manages images and leaves videos as they are.
+- `variant_ids` links product-level media to any number of variants (`[]` clears it; variants
+  of other products are dropped silently). `alt: null` clears alt text. Unknown `q[…]` filters
+  are ignored, not refused.
+- **The media library** (`GET /api/v3/admin/media`) is the store's files, newest first, **one
+  row per file** (`distinct_by_file`): a file placed on three products is listed once, as its
+  newest placement. Ransack allows `alt`, `media_type`, `created_at`, `updated_at`, `filename`,
+  `byte_size` and the scopes `attached`, `unattached`, `filename_cont`, so `q[alt_blank]=1`
+  finds missing alt text, but **nothing filters by product**. Rows give `product_id` only; names
+  come from `GET /products?q[id_in][]=…` (prefixed ids work there). It also lists category and
+  collection images and unplaced uploads; the adapter asks for `attached` images and keeps rows
+  with a `product_id`. A product-name search goes through `GET /products?q[search]=…&expand=media`
+  instead. Rows without a `store_id` (pre-6.0 data the upgrade task hasn't reached) are not in
+  the library at all *(gem source)*.
+- Deleting from the library deletes the file and is refused with its usage (422) unless
+  `detach=true`; the app only removes placements through the product's nested endpoint. *(gem source)*
+- Renditions are WebP `representations/proxy` URLs that load without auth (the contract test fetches them).
+
+### Docker note: re-copied gem migration
+
+`infra/spree/4.2`'s entrypoint runs `railties:install:migrations FROM=spree_admin_native` at
+every boot. A recreated container has a fresh filesystem, so the gem's migration is copied again
+under a new timestamp and ran again against tables that already exist: spree42 exited with
+`PG::DuplicateTable` on `spree_admin_native_devices`. The gem's migration now uses
+`if_not_exists` for its tables and indexes, so a re-copied migration is a no-op.
+## i. Creating orders (2026-11-27)
+
+Established live against both stores and proven by
+`packages/spree-sdk/contract/order-create.contract.ts` (a customer's order with two items, an
+address, a chosen rate and a manual payment marked paid; a guest order left with a balance due; a
+draft edited and discarded). On 4.2 the suite runs **without** the companion gem, so
+`orders.create` is claimed for the `api-v1` family; the gem's extras are checked separately.
+
+### 4.2: API v1
+
+```sh
+# Draft: Spree's order importer (admins only). No user_id: see 1.
+curl -s -X POST -H "X-Spree-Token: $KEY42" -H 'Content-Type: application/json' "$B42/api/v1/orders" -d '{"order":{
+  "email":"customer1@example.com","line_items_attributes":[{"variant_id":117,"quantity":2}],
+  "ship_address_attributes":{"firstname":"Ada","lastname":"Lovelace","address1":"1 Main St","city":"Portland",
+    "zipcode":"97201","phone":"5550100","country_id":224,"state_name":"OR"},"bill_address_attributes":{…}}}'
+curl -s -X PUT  … "$B42/api/v1/orders/R123" -d '{"order":{"user_id":3}}'          # or null for a guest
+curl -s -X PUT  … "$B42/api/v1/checkouts/R123/next"                                 # cart → address → delivery
+curl -s -X PUT  … "$B42/api/v1/checkouts/R123" -d '{"state":"delivery","order":{"shipments_attributes":[{"id":33,"selected_shipping_rate_id":342}]}}'
+curl -s -X POST … "$B42/api/v1/orders/R123/payments" -d '{"payment":{"payment_method_id":3,"amount":"289.97"}}'
+curl -s -X PUT  … "$B42/api/v1/checkouts/R123/next"                                 # payment → complete
+curl -s -X PUT  … "$B42/api/v1/orders/R123/payments/P3MAN240/capture"               # only when paid now
+```
+
+1. **`POST /api/v1/orders` as an admin runs `Spree::Core::Importer::Order`**, not the cart
+   service. It takes `email`, `line_items_attributes` and both `*_address_attributes` (with
+   `country: {iso}` / `state: {abbr}`, or `country_id` and `state_name`), and gives the order to
+   the API user (**the admin**) when no `user_id` is sent. With `user_id` it gives it to that
+   customer, who also becomes `created_by`. The SDK sends no `user_id` and then
+   `PUT /orders/:number` with `order[user_id]` (the customer, or `null` for a guest), so the admin
+   stays the order's creator. The importer leaves the order in `cart` with proposed shipments.
+   - The admin branch reads the `*_attributes` names; `line_items` / `ship_address` only work
+     because `order_params` happens to rename them first.
+   - A failed import answers **422 `{"exception": "Validation failed: Shipping address last name
+     can't be blank, …"}`**. `extractErrorMessage` now reads `exception`.
+2. Address writes after the importer take `country_id`: 4.2's `Address` has no `country_iso`
+   setter (only the storefront services translate it). `state_name` accepts a state's name or
+   abbreviation; validation resolves it to the state. `GET /api/v1/countries` ignores Ransack
+   (`q[iso_eq]` returns all 240) and answers them in one page; the SDK caches the iso → id map.
+3. `PUT /api/v1/checkouts/:number/next` walks cart → address → delivery (`advance` runs on to
+   `payment`). From delivery on, shipments carry `shipping_rates` (`id`, `name`, `cost`,
+   `selected`). Editing lines or the order (`Cart::Update`) restarts the checkout to `address`
+   and drops the shipments, so rates are quoted again after `next`.
+4. **Choosing a rate**: `PUT /api/v1/shipments/:number` with `shipment[selected_shipping_rate_id]`
+   changes the cost but leaves the seeded free-shipping promotion's credit at the old rate
+   (item 274.97 + ship 15.00 − 5.00 = total 284.97). `PUT /api/v1/checkouts/:number` with
+   `state: delivery` and `order[shipments_attributes][][id, selected_shipping_rate_id]` re-enters
+   the delivery step and leaves it, which re-applies shipping promotions and totals
+   (ship 15.00, credit −15.00). The SDK uses that.
+5. **Payment methods**: v1 `GET /orders/:number/payments/new` lists `id`, `name` and
+   `description` only, so card methods (Bogus gateway, Store Credit) can't be told from Check.
+   The Storefront API v2 `GET /api/v2/storefront/checkout/payment_methods` with
+   `X-Spree-Order-Token: <order.token>` (admins see the token in v1's order JSON) names each
+   type, but only for storefront methods (`display_on` both/front_end). Without the gem the SDK
+   offers that list's `Spree::PaymentMethod::Check` methods; gem 0.3 `GET payment_methods`
+   lists active, back-office, source-less methods for the default store.
+6. **Placing**: `POST /orders/:number/payments` with `payment_method_id` and `amount`, then
+   `next` (payment → complete; a `confirm` step is walked too when a store has one). Source-less
+   payments are **not processed** at completion (`handle_payment_preconditions` only yields for
+   methods that need a source), so a Check payment stays **`checkout`** on the placed order and
+   `payment_state` is `balance_due`. `PUT …/payments/:number/capture` takes it to `completed`
+   (`paid`). Spree's admin offers Capture on such payments; the app's order screen now shows
+   Capture for `checkout` payments of placed orders too, and the orders contract's capture test
+   takes them (the seed's "balance due" orders hold exactly such payments).
+7. Without a payment, `next` from `payment` is refused ("No payment found"), so on 4.2 "balance
+   due" always records a pending manual payment.
+8. **No delete**: `DELETE /api/v1/orders/:number` is routed but has no action (404 HTML).
+   `PUT /orders/:number/empty` (204) empties the order; the SDK also detaches it from any
+   account. Gem 0.3 `DELETE orders/:number` deletes incomplete orders a staff member created
+   (`created_by` is an admin) and refuses placed orders and shoppers' carts.
+9. Spree 4 answers unknown `/api/*` paths with 301 to `/api/v1/…json`. A **DELETE** to a gem
+   endpoint the store's (older) gem doesn't have follows that into "redirect count exceeded"
+   (a network error, not a 404); the SDK falls back to v1 on either.
+
+### 6.0: Admin API v3
+
+```sh
+curl -s -X POST -H "X-Spree-Api-Key: $KEY60" -H 'Content-Type: application/json' \
+  "$B60/api/v3/admin/orders?expand=items,fulfillments.delivery_rates" -d '{"customer_id":"cust_98FqgRua4h",
+  "items":[{"variant_id":"variant_nJqfPa3Cpe","quantity":2}],"shipping_address":{"first_name":"Pat","last_name":"Guest",
+  "address1":"1 Main St","city":"Portland","postal_code":"97201","country_code":"US","state_code":"OR","phone":"5550100"},
+  "use_shipping":true}'
+curl -s -X PATCH … "$B60/api/v3/admin/orders/or_…/fulfillments/ful_…" -d '{"selected_delivery_rate_id":"dr_…"}'
+curl -s -X POST  … "$B60/api/v3/admin/orders/or_…/payments" -d '{"payment_method_id":"pm_EfhxLZ9ck8"}'
+curl -s -X PATCH … "$B60/api/v3/admin/orders/or_…/complete" -d '{"payment_pending":true}'
+curl -s -X PATCH … "$B60/api/v3/admin/orders/or_…/payments/py_…/capture"         # only when paid now
+```
+
+1. `POST /orders` (request schema `order`) takes `email`, `customer_id`, `items`
+   (`variant_id`, `quantity`, optional negotiated `price`), `shipping_address` /
+   `billing_address` (`first_name`, `last_name`, `address1`, `address2`, `city`,
+   `postal_code`, `phone`, `company`, `country_code`, `state_code` or `state_name`),
+   `use_shipping` (bill = ship) and `use_customer_default_address`. It answers a `status: draft`
+   order with fulfillments already priced; their rates need
+   `expand=fulfillments.delivery_rates` (seed: Store Pickup 0.00, Standard 5.00 selected,
+   Express 15.00). The SDK adds that expand to `orders.get`.
+2. `PATCH /orders/:id`: `items` upserts by variant and `quantity: 0` removes a line;
+   `customer_id: null` makes it a guest order; addresses are replaced (`use_shipping` copies).
+3. `PATCH /orders/:id/fulfillments/:id` with `selected_delivery_rate_id` reprices the order.
+4. `GET /payment_methods`: Check has `source_required: false`, `session_required: false`
+   (and `storefront_visible: false`); Store Credit and the Bogus card gateway require a source.
+5. `POST /orders/:id/payments` with `payment_method_id` records a `checkout` payment for what
+   the order owes. `PATCH /orders/:id/complete`:
+   - with no payment: 422 `order_cannot_complete` "No payment found";
+   - with a Check payment: processes it and, with the default `resolved_capture_method:
+     checkout`, **captures** it (`paid`);
+   - with `payment_pending: true`: places the order without processing: the payment stays
+     `checkout` (`can_capture: true`) and `payment_status` is `none` (the SDK reports `unpaid`).
+     `PATCH …/payments/:id/capture` then makes it `paid`. With no payment at all it places the
+     order with the whole total due.
+
+   The SDK always completes with `payment_pending: true` and captures explicitly for "paid now",
+   so the outcome doesn't depend on a method's capture setting.
+6. `DELETE /orders/:id` deletes a draft (204, then 404). A placed order answers 422
+   "Order cannot be deleted".
+7. The order list's `complete: true` filter hides drafts; `q[status_eq]=draft` lists admin
+   drafts (storefront checkouts carry a `cart_id` and stay out of the admin scope).
+
+### Shared Docker stores
+
+`docker compose up` (which `spree-up.mjs` and `contract.mjs` run) recreates a container whose
+configuration changed, and a worktree's compose file bind-mounts *its own* `gems/` and
+`infra/spree/*`. Running either script from another checkout therefore recreates both stores
+with that checkout's gem. On a fresh 4.2 container the entrypoint copies the gem's migration
+again under a new timestamp, and `create_table` failed on the existing tables, so the store
+exited at boot. The migration now uses `if_not_exists`, which makes the re-copy harmless.

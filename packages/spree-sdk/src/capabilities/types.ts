@@ -21,6 +21,7 @@ export type AuthMethod =
 /** Core capabilities. Extensions add namespaced strings such as `beeper.moderation`. */
 export const CORE_CAPABILITIES = [
   'orders.read',
+  'orders.create',
   'orders.cancel',
   'orders.capture',
   'orders.refund',
@@ -29,7 +30,9 @@ export const CORE_CAPABILITIES = [
   'products.read',
   'products.write',
   'products.media',
+  'media.library',
   'inventory.adjust',
+  'inventory.lowStock',
   'customers.read',
   'customers.write',
   'promotions.read',

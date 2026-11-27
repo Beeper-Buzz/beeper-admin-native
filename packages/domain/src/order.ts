@@ -68,6 +68,15 @@ export const LineItem = z.object({
 });
 export type LineItem = z.infer<typeof LineItem>;
 
+/** A delivery option the store quotes for a shipment (Spree 4 shipping rate, Spree 6 delivery rate). */
+export const ShippingRate = z.object({
+  id: Id,
+  name: z.string(),
+  cost: Money,
+  selected: z.boolean(),
+});
+export type ShippingRate = z.infer<typeof ShippingRate>;
+
 export const Fulfillment = z.object({
   id: Id,
   number: SpreeNumber,
@@ -79,6 +88,8 @@ export const Fulfillment = z.object({
   stockLocationName: z.string().nullable(),
   cost: Money,
   items: z.array(z.object({ lineItemId: Id, quantity: z.number().int().nonnegative() })),
+  /** The rates the merchant can choose between while the order is a draft; empty when not read. */
+  rates: z.array(ShippingRate).default([]),
 });
 export type Fulfillment = z.infer<typeof Fulfillment>;
 
@@ -96,6 +107,17 @@ export const Payment = z.object({
   canVoid: z.boolean().nullable(),
 });
 export type Payment = z.infer<typeof Payment>;
+
+/**
+ * A payment method the merchant can record without card details (Check, cash, bank transfer):
+ * what an order created in the app can be paid with.
+ */
+export const ManualPaymentMethod = z.object({
+  id: Id,
+  name: z.string(),
+  description: z.string().nullable(),
+});
+export type ManualPaymentMethod = z.infer<typeof ManualPaymentMethod>;
 
 export const OrderCustomer = z.object({ id: Id, email: z.string() });
 

@@ -1,4 +1,4 @@
-import type { Promotion, PromotionListFilter } from '@instincts/spree-domain';
+import type { PromotionListFilter } from '@instincts/spree-domain';
 import { layout, space } from '@instincts/spree-ui';
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { router, Stack } from 'expo-router';

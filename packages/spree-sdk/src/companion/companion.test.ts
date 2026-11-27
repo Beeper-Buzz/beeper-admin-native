@@ -22,7 +22,7 @@ describe('companion client', () => {
   it('exchanges a code for a device token', async () => {
     const calls: unknown[] = [];
     const fetch: FetchLike = async (_url, init) => {
-      calls.push(JSON.parse(init.body ?? '{}'));
+      calls.push(JSON.parse(String(init.body ?? '{}')));
       return json(201, {
         token: 'san_x',
         device: { id: '1', name: 'iPhone', platform: 'ios' },
@@ -70,5 +70,22 @@ describe('companion client', () => {
       today: { orders: 3, sales: { amount: '412.50', currency: 'USD' } },
       ordersToFulfill: 9,
     });
+  });
+
+  it('lists manual payment methods and deletes a draft by number (gem 0.3)', async () => {
+    const calls: [string, string][] = [];
+    const fetch: FetchLike = async (url, init) => {
+      calls.push([init.method ?? 'GET', String(url)]);
+      return init.method === 'DELETE'
+        ? new Response(null, { status: 204 })
+        : json(200, { data: [{ id: '3', name: 'Check', description: '' }] });
+    };
+    const gem = companion(createTransport({ baseUrl: 'http://shop.test', fetch }));
+    expect(await gem.manualPaymentMethods()).toEqual([{ id: '3', name: 'Check', description: null }]);
+    await gem.discardDraft('R123');
+    expect(calls).toEqual([
+      ['GET', 'http://shop.test/api/admin_native/v1/payment_methods'],
+      ['DELETE', 'http://shop.test/api/admin_native/v1/orders/R123'],
+    ]);
   });
 });

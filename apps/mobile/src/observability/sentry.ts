@@ -117,4 +117,38 @@ export function tagStore(probe: Pick<StoreProbe, 'baseUrl' | 'preferredApi' | 's
   Sentry.setTag('spree_version', probe?.spreeVersion ?? null);
 }
 
+/** Error kinds that are the user's or the network's, not a defect: shown in the UI, not reported. */
+const EXPECTED_KINDS = new Set([
+  'auth',
+  'forbidden',
+  'offline',
+  'timeout',
+  'network',
+  'notFound',
+  'invalid',
+  'conflict',
+  'rateLimited',
+  'capability',
+]);
+
+/**
+ * Reports a failed API call when it points at a defect: the store answered 5xx, sent something
+ * the app couldn't parse, or the app's own router threw. Tagged with the tRPC procedure and the
+ * Spree error kind. Returns whether it was reported.
+ */
+export function reportApiError(error: unknown): boolean {
+  if (!started) return false;
+  const data = (
+    error as { data?: { spreeKind?: string | null; path?: string; code?: string; httpStatus?: number } }
+  )?.data;
+  const kind = data?.spreeKind ?? null;
+  if (kind && EXPECTED_KINDS.has(kind)) return false;
+  if (!kind && data?.code && data.code !== 'INTERNAL_SERVER_ERROR') return false;
+  Sentry.captureException(error, {
+    tags: { api_procedure: data?.path ?? 'unknown', spree_kind: kind ?? 'none' },
+    ...(data?.httpStatus ? { contexts: { api: { httpStatus: data.httpStatus } } } : {}),
+  });
+  return true;
+}
+
 export { Sentry };

@@ -22,6 +22,9 @@ jest.mock('expo-router', () => ({
 jest.mock('@/session/session', () => ({ useCan: () => () => true }));
 
 const usd = (amount: string) => ({ amount, currency: 'USD' });
+
+import OrdersScreen from '@/app/(tabs)/orders/index';
+
 const tee: Product = {
   id: 'p1',
   name: 'Logo tee',
@@ -112,7 +115,14 @@ function setup() {
     probe: {
       baseUrl: 'https://shop.test',
       currency: 'USD',
-      capabilities: ['orders.read', 'products.read', 'products.write', 'inventory.adjust', 'customers.read'],
+      capabilities: [
+        'orders.read',
+        'products.read',
+        'products.write',
+        'inventory.adjust',
+        'inventory.lowStock',
+        'customers.read',
+      ],
     },
     adapter: { family: 'api-v1', orders, products, customers, promotions: unsupportedPromotions },
   } as unknown as Session;
@@ -136,13 +146,26 @@ describe('products', () => {
     await ui(<ProductsScreen />);
     expect(await screen.findByText('Logo tee')).toBeTruthy();
     expect(screen.getByText('2 variants · 10 in stock')).toBeTruthy();
-    expect(screen.getByText('Low stock')).toBeTruthy();
+    // The filter chip and the row's badge.
+    expect(screen.getAllByText('Low stock')).toHaveLength(2);
     await fireEvent.changeText(screen.getByLabelText('Search products'), 'TEE-M');
     await waitFor(() =>
       expect(products.list).toHaveBeenLastCalledWith(expect.objectContaining({ query: 'TEE-M' })),
     );
     await fireEvent.press(screen.getByText('Logo tee'));
     expect(mockPush).toHaveBeenCalledWith('/products/p1');
+  });
+
+  it('opens on the low-stock filter from Home and hides search there', async () => {
+    mockParams = { filter: 'lowStock' };
+    const { products, ui } = setup();
+    await ui(<ProductsScreen />);
+    await waitFor(() =>
+      expect(products.list).toHaveBeenCalledWith(expect.objectContaining({ lowStock: true })),
+    );
+    expect(screen.queryByLabelText('Search products')).toBeNull();
+    expect(screen.getByRole('tab', { name: /Low stock/ })).toBeTruthy();
+    mockParams = {};
   });
 
   it('changes status and saves only edited fields', async () => {
@@ -205,5 +228,17 @@ describe('customers', () => {
       expect(orders.list).toHaveBeenCalledWith(expect.objectContaining({ query: 'maya@example.com' })),
     );
     expect(await screen.findAllByLabelText(`Number ${order.number}`)).toHaveLength(1);
+  });
+});
+
+describe('orders list', () => {
+  it("opens on Home's filter", async () => {
+    mockParams = { filter: 'unpaid' };
+    const { orders, ui } = setup();
+    await ui(<OrdersScreen />);
+    await waitFor(() =>
+      expect(orders.list).toHaveBeenCalledWith(expect.objectContaining({ filter: 'unpaid' })),
+    );
+    mockParams = {};
   });
 });

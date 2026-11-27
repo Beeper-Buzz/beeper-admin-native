@@ -19,6 +19,9 @@ if [[ "$*" == *"rails server"* ]]; then
   done
 
   bin/rails db:create 2>&1 | quiet
+  # The companion gem is bind-mounted at run time (the build only has its gemspec), so its
+  # migrations are installed here; the task skips ones already copied.
+  bin/rails railties:install:migrations FROM=spree_admin_native 2>&1 | quiet
   echo "[entrypoint] migrating..."
   bin/rails db:migrate 2>&1 | quiet | tail -n 3
 

@@ -17,6 +17,13 @@ import type {
   Payment as V3Payment,
 } from '@spree/admin-sdk';
 
+interface V3DeliveryRate {
+  id: string;
+  name: string;
+  cost: string;
+  selected: boolean;
+}
+
 const ORDER_STATUS: Record<string, OrderStatus> = { draft: 'draft', placed: 'placed', canceled: 'canceled' };
 
 /** Spree 6 keeps a few Spree 4 shipment-state values in this enum; fold them into ours. */
@@ -92,6 +99,13 @@ function mapFulfillment(f: V3Fulfillment, currency: string): Fulfillment {
     stockLocationName: f.stock_location?.name ?? null,
     cost: money(f.cost, currency),
     items: f.items.map((i) => ({ lineItemId: i.item_id, quantity: i.quantity })),
+    // Present with expand=fulfillments.delivery_rates.
+    rates: ((f as { delivery_rates?: V3DeliveryRate[] }).delivery_rates ?? []).map((r) => ({
+      id: r.id,
+      name: r.name,
+      cost: money(r.cost, currency),
+      selected: r.selected,
+    })),
   };
 }
 

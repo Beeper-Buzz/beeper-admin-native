@@ -7,9 +7,13 @@ SpreeAdminNative::Engine.routes.draw do
     patch 'devices/current', to: 'devices#update_current'
     delete 'devices/:id', to: 'devices#destroy'
     get 'summary', to: 'summary#show'
+    get 'low_stock', to: 'summary#low_stock'
+    get 'media', to: 'media#index'
     get 'refund_reasons', to: 'refunds#reasons'
     post 'orders/:order_number/payments/:payment_number/refunds', to: 'refunds#create'
     resources :promotions, only: %i[index show create update]
+    get 'payment_methods', to: 'draft_orders#payment_methods'
+    delete 'orders/:order_number', to: 'draft_orders#destroy'
   end
 end
 

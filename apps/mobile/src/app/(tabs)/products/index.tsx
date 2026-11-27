@@ -2,34 +2,47 @@ import { isLowStock, sellableVariants } from '@instincts/spree-domain';
 import { layout, radius, space } from '@instincts/spree-ui';
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { Image } from 'expo-image';
-import { router } from 'expo-router';
-import { useState } from 'react';
+import { router, useLocalSearchParams } from 'expo-router';
+import { useEffect, useState } from 'react';
 import { ActivityIndicator, FlatList, RefreshControl, View } from 'react-native';
 import { FilterChips } from '@/components/filter-chips';
 import { ListRow } from '@/components/list-row';
 import { Badge, EmptyState, MoneyText, Screen, TextField } from '@/components/primitives';
 import { useDebounced } from '@/components/use-debounced';
 import { stockLine } from '@/products/products';
+import { useCan } from '@/session/session';
 import { useTheme } from '@/theme/theme';
 import { useTRPC } from '@/trpc/trpc';
 
-type StatusFilter = 'all' | 'active' | 'draft' | 'archived';
-const FILTERS = [
+type Filter = 'all' | 'active' | 'draft' | 'archived' | 'lowStock';
+const STATUS_FILTERS = [
   ['all', 'All'],
   ['active', 'Active'],
   ['draft', 'Draft'],
   ['archived', 'Archived'],
-] as const satisfies readonly (readonly [StatusFilter, string])[];
+] as const satisfies readonly (readonly [Filter, string])[];
+const LOW_STOCK = ['lowStock', 'Low stock'] as const;
 
 export default function ProductsScreen() {
   const trpc = useTRPC();
   const { colors } = useTheme();
-  const [status, setStatus] = useState<StatusFilter>('all');
+  const can = useCan();
+  const filters = can('inventory.lowStock') ? [...STATUS_FILTERS, LOW_STOCK] : STATUS_FILTERS;
+  // Home's low-stock row opens this tab on ?filter=lowStock.
+  const params = useLocalSearchParams<{ filter?: string }>();
+  const linked = filters.find(([key]) => key === params.filter)?.[0];
+  const [filter, setFilter] = useState<Filter>(linked ?? 'all');
+  useEffect(() => {
+    if (linked) setFilter(linked);
+  }, [linked]);
+  const lowStock = filter === 'lowStock';
   const [search, setSearch] = useState('');
   const query = useDebounced(search.trim());
   const list = useInfiniteQuery(
     trpc.products.list.infiniteQueryOptions(
-      { status, perPage: 25, ...(query ? { query } : {}) },
+      lowStock
+        ? { lowStock: true, perPage: 25 }
+        : { status: filter as Exclude<Filter, 'lowStock'>, perPage: 25, ...(query ? { query } : {}) },
       { getNextPageParam: (page) => page.nextCursor ?? undefined },
     ),
   );
@@ -44,21 +57,24 @@ export default function ProductsScreen() {
         keyExtractor={(p) => p.id}
         ListHeaderComponent={
           <View>
-            <View style={{ paddingHorizontal: layout.gutter, paddingTop: space[2] }}>
-              <TextField
-                label="Search products"
-                value={search}
-                onChangeText={setSearch}
-                placeholder="Name or SKU"
-                autoCorrect={false}
-                clearButtonMode="while-editing"
-                returnKeyType="search"
-              />
-            </View>
+            {/* Low stock ignores search, so the field is hidden there. */}
+            {lowStock ? null : (
+              <View style={{ paddingHorizontal: layout.gutter, paddingTop: space[2] }}>
+                <TextField
+                  label="Search products"
+                  value={search}
+                  onChangeText={setSearch}
+                  placeholder="Name or SKU"
+                  autoCorrect={false}
+                  clearButtonMode="while-editing"
+                  returnKeyType="search"
+                />
+              </View>
+            )}
             <FilterChips
-              options={FILTERS}
-              value={status}
-              onChange={setStatus}
+              options={filters}
+              value={filter}
+              onChange={setFilter}
               count={list.data?.pages[0]?.totalCount}
             />
           </View>
@@ -105,8 +121,14 @@ export default function ProductsScreen() {
             <EmptyState title="Couldn't load products" body={list.error.message} />
           ) : (
             <EmptyState
-              title={query ? 'No matches' : 'No products here'}
-              body={query ? `Nothing matches “${query}”.` : 'Products with this status appear here.'}
+              title={lowStock ? 'Nothing low on stock' : query ? 'No matches' : 'No products here'}
+              body={
+                lowStock
+                  ? 'Products whose tracked variants run low appear here, lowest first.'
+                  : query
+                    ? `Nothing matches “${query}”.`
+                    : 'Products with this status appear here.'
+              }
             />
           )
         }

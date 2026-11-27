@@ -17,8 +17,22 @@ export default function ProductsLayout() {
       <Stack.Screen name="index" options={{ title: 'Products', headerLargeTitle: true }} />
       <Stack.Screen name="[id]" options={{ title: '' }} />
       <Stack.Screen
+        name="photo"
+        options={{
+          presentation: 'formSheet',
+          sheetAllowedDetents: 'fitToContents',
+          sheetGrabberVisible: true,
+          headerShown: false,
+        }}
+      />
+      <Stack.Screen
         name="variant"
-        options={{ presentation: 'formSheet', sheetAllowedDetents: 'fitToContents', headerShown: false }}
+        options={{
+          presentation: 'formSheet',
+          sheetAllowedDetents: 'fitToContents',
+          sheetGrabberVisible: true,
+          headerShown: false,
+        }}
       />
     </Stack>
   );

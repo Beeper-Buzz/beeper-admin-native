@@ -1,12 +1,15 @@
 import type { OrderListFilter } from '@instincts/spree-domain';
 import { space } from '@instincts/spree-ui';
 import { useInfiniteQuery } from '@tanstack/react-query';
-import { router } from 'expo-router';
-import { useState } from 'react';
-import { ActivityIndicator, FlatList, RefreshControl, View } from 'react-native';
+import { router, Stack, useLocalSearchParams } from 'expo-router';
+import { useEffect, useState } from 'react';
+import { ActivityIndicator, FlatList, Pressable, RefreshControl, View } from 'react-native';
 import { FilterChips } from '@/components/filter-chips';
 import { OrderRow } from '@/components/order-row';
 import { EmptyState, Screen } from '@/components/primitives';
+import { Text } from '@/components/text';
+import { useCan } from '@/session/session';
+import { useTheme } from '@/theme/theme';
 import { useTRPC } from '@/trpc/trpc';
 
 const FILTERS: [OrderListFilter, string][] = [
@@ -25,7 +28,15 @@ const EMPTY: Record<OrderListFilter, [string, string]> = {
 
 export default function OrdersScreen() {
   const trpc = useTRPC();
-  const [filter, setFilter] = useState<OrderListFilter>('unfulfilled');
+  const can = useCan();
+  const { colors } = useTheme();
+  // Home's to-do rows open this tab on a filter (?filter=unpaid).
+  const params = useLocalSearchParams<{ filter?: string }>();
+  const linked = FILTERS.find(([key]) => key === params.filter)?.[0];
+  const [filter, setFilter] = useState<OrderListFilter>(linked ?? 'unfulfilled');
+  useEffect(() => {
+    if (linked) setFilter(linked);
+  }, [linked]);
   const query = useInfiniteQuery(
     trpc.orders.list.infiniteQueryOptions(
       { filter, perPage: 25 },
@@ -36,6 +47,23 @@ export default function OrdersScreen() {
 
   return (
     <Screen>
+      <Stack.Screen
+        options={{
+          headerRight: can('orders.create')
+            ? () => (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="New order"
+                  onPress={() => router.push('/orders/new')}
+                >
+                  <Text font="uiSemibold" style={{ color: colors.accentInk }}>
+                    New
+                  </Text>
+                </Pressable>
+              )
+            : undefined,
+        }}
+      />
       <FlatList
         contentInsetAdjustmentBehavior="automatic"
         data={orders}

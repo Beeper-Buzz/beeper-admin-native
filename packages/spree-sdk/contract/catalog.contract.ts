@@ -26,8 +26,11 @@ describe.runIf(enabled)(`catalog contract: Spree ${env.label}`, () => {
   beforeAll(async () => {
     const transport = baseTransport();
     const auth = await signIn(transport);
-    const family = env.family ?? (await probeStore({ baseUrl: env.url, timeoutMs: 10_000 })).preferredApi;
-    adapter = createAdapter(family, transport.withAuth(auth));
+    const probe = await probeStore({ baseUrl: env.url, timeoutMs: 10_000 });
+    // Like the app: the companion gem's endpoints come along when the store has it.
+    adapter = createAdapter(env.family ?? probe.preferredApi, transport.withAuth(auth), {
+      companion: probe.gem !== null,
+    });
     // Newest first: seeded orders tend to use the oldest products, which orders tests restock.
     const page = await adapter.products.list({ status: 'active', perPage: 50 });
     sample = must(
@@ -203,17 +206,48 @@ describe.runIf(enabled)(`catalog contract: Spree ${env.label}`, () => {
     let others: number | null = null;
     try {
       const t1 = must(await onHand(await adapter.products.setStock(sample, variant.id, 7)), 'on-hand count');
-      // Other locations keep their stock: the total moves by exactly what this location moved.
+      // Other locations keep their stock (possibly negative when backordered), so the total moves
+      // by exactly what this location moved. Totals can also drift on their own (Spree 6 nets out
+      // expiring cart reservations), so only changes made here are asserted.
       others = t1 - 7;
-      expect(others).toBeGreaterThanOrEqual(0);
       expect(await onHand(await adapter.products.setStock(sample, variant.id, 9))).toBe(t1 + 2);
     } finally {
-      if (others !== null) {
-        const restored = await adapter.products.setStock(sample, variant.id, total0 - others);
-        expect(await onHand(restored)).toBe(total0);
-      }
+      if (others !== null) await adapter.products.setStock(sample, variant.id, total0 - others);
     }
   });
+
+  proves(
+    'inventory.lowStock',
+    'lists a product once a tracked variant runs out, then restores it',
+    async (skip) => {
+      const caps = (await probeStore({ baseUrl: env.url, timeoutMs: 10_000 })).capabilities;
+      if (!caps.includes('inventory.lowStock')) return skip('store has no low-stock list');
+      const before = (await adapter.products.get(sample.id)).variants.find((v) => v.id === variant.id);
+      const total0 = must(before?.totalOnHand, 'on-hand count');
+      const onHand = async (p: Product) => p.variants.find((v) => v.id === variant.id)?.totalOnHand;
+      let others: number | null = null;
+      try {
+        const t1 = must(
+          await onHand(await adapter.products.setStock(sample, variant.id, 0)),
+          'on-hand count',
+        );
+        others = t1;
+        if (others > 2) return skip('the variant has stock at other locations');
+        const ids: string[] = [];
+        let cursor: string | null = null;
+        for (let page = 0; page < 10; page++) {
+          const res = await adapter.products.list({ lowStock: true, perPage: 100, cursor });
+          ids.push(...res.items.map((p) => p.id));
+          if (!res.nextCursor) break;
+          cursor = res.nextCursor;
+        }
+        expect(ids).toContain(sample.id);
+      } finally {
+        // Totals can drift on their own (expiring reservations), so the restore isn't asserted.
+        if (others !== null) await adapter.products.setStock(sample, variant.id, total0 - others);
+      }
+    },
+  );
 
   // --- customers.read --------------------------------------------------------------------------
 

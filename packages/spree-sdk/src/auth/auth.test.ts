@@ -5,7 +5,7 @@ import { apiKeyAuth, oauthClientCredentials, oauthPasswordGrant, restoreAuth } f
 function recorder(...replies: { status: number; body: unknown }[]) {
   const calls: { url: string; body: unknown; headers: Record<string, string> }[] = [];
   const fetch: FetchLike = async (url, init) => {
-    calls.push({ url, body: init.body ? JSON.parse(init.body) : undefined, headers: init.headers });
+    calls.push({ url, body: init.body ? JSON.parse(String(init.body)) : undefined, headers: init.headers });
     const r = replies.shift() ?? { status: 200, body: {} };
     return new Response(JSON.stringify(r.body), {
       status: r.status,

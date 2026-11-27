@@ -45,6 +45,8 @@ export interface V1Order {
   completed_at: string | null;
   created_at: string;
   updated_at: string;
+  /** The guest token; admins see it. The Storefront API v2 takes it as X-Spree-Order-Token. */
+  token?: string;
   bill_address?: V1Address | null;
   ship_address?: V1Address | null;
   line_items?: {
@@ -69,6 +71,7 @@ export interface V1Order {
     shipped_at: string | null;
     stock_location_name?: string | null;
     selected_shipping_rate?: { name: string } | null;
+    shipping_rates?: { id: number; name: string; cost: string; selected: boolean }[];
     manifest?: { variant_id: number; quantity: number }[];
   }[];
   payments?: {
@@ -77,6 +80,7 @@ export interface V1Order {
     state: string;
     amount: string;
     created_at: string;
+    payment_method_id?: number;
     payment_method?: { name: string } | null;
     source?: { last_digits?: string | null; cc_type?: string | null } | null;
   }[];
@@ -172,6 +176,12 @@ export function mapV1Order(o: V1Order): Order {
     items: (s.manifest ?? []).map((m) => ({
       lineItemId: lineByVariant.get(String(m.variant_id)) ?? String(m.variant_id),
       quantity: m.quantity,
+    })),
+    rates: (s.shipping_rates ?? []).map((r) => ({
+      id: String(r.id),
+      name: r.name,
+      cost: money(r.cost, c),
+      selected: r.selected,
     })),
   }));
 

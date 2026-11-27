@@ -1,4 +1,4 @@
-import { money, StoreSummary } from '@instincts/spree-domain';
+import { type ManualPaymentMethod, money, StoreSummary } from '@instincts/spree-domain';
 import { SpreeError } from '../errors';
 import type { Transport } from '../transport';
 
@@ -21,6 +21,15 @@ export interface CompanionRefund {
 export interface CompanionPort {
   summary(): Promise<StoreSummary>;
   refundReasons(): Promise<{ id: string; name: string }[]>;
+  /** Gem 0.3+: products with low-stock variants, lowest first. */
+  lowStockProducts(
+    page: number,
+    perPage: number,
+  ): Promise<{
+    rows: { productId: string; lowVariants: number; lowestOnHand: number }[];
+    totalCount: number;
+    threshold: number;
+  }>;
   /** Spree 4.2–4.3: API v1 has no working refund action. */
   refund(input: {
     orderNumber: string;
@@ -29,6 +38,10 @@ export interface CompanionPort {
     reasonId?: string | null;
   }): Promise<CompanionRefund>;
   updateCurrentDevice(patch: { pushToken?: string | null; pushEnabled?: boolean }): Promise<void>;
+  /** Spree 4.2–4.3: payment methods that need no source (API v1 doesn't say which do). Gem 0.3+. */
+  manualPaymentMethods(): Promise<ManualPaymentMethod[]>;
+  /** Spree 4.2–4.3: delete an incomplete order (API v1 has no destroy). Gem 0.3+. */
+  discardDraft(orderNumber: string): Promise<void>;
 }
 
 /** What a scanned QR code holds: `https://store/api/admin_native/v1/pair?code=ABCD…`. */
@@ -89,6 +102,21 @@ export function companion(transport: Transport): CompanionPort {
         generatedAt: b.generated_at,
       });
     },
+    async lowStockProducts(page, perPage) {
+      const { data } = await transport.request<{
+        data: { product_id: string; low_variants: number; lowest_on_hand: number }[];
+        meta: { total_count: number; threshold: number };
+      }>({ path: `${BASE}/low_stock`, query: { page, per_page: perPage } });
+      return {
+        rows: data.data.map((r) => ({
+          productId: r.product_id,
+          lowVariants: r.low_variants,
+          lowestOnHand: r.lowest_on_hand,
+        })),
+        totalCount: data.meta.total_count,
+        threshold: data.meta.threshold,
+      };
+    },
     async refundReasons() {
       const { data } = await transport.request<{ data: { id: string; name: string }[] }>({
         path: `${BASE}/refund_reasons`,
@@ -113,6 +141,18 @@ export function companion(transport: Transport): CompanionPort {
       if (patch.pushToken !== undefined) body.push_token = patch.pushToken;
       if (patch.pushEnabled !== undefined) body.push_enabled = patch.pushEnabled;
       await transport.request({ method: 'PATCH', path: `${BASE}/devices/current`, body });
+    },
+    async manualPaymentMethods() {
+      const { data } = await transport.request<{
+        data: { id: string; name: string; description: string | null }[];
+      }>({ path: `${BASE}/payment_methods` });
+      return data.data.map((m) => ({ id: m.id, name: m.name, description: m.description || null }));
+    },
+    async discardDraft(orderNumber) {
+      await transport.request({
+        method: 'DELETE',
+        path: `${BASE}/orders/${encodeURIComponent(orderNumber)}`,
+      });
     },
   };
 }

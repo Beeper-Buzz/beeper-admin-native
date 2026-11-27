@@ -16,6 +16,12 @@ export default function MoreScreen() {
   const links: [string, string, () => void][] = [];
   if (can('promotions.read'))
     links.push(['Promotions', 'Discount codes and automatic offers', () => router.push('/more/promotions')]);
+  if (can('media.library'))
+    links.push([
+      'Media',
+      'Every product photo, and the ones missing alt text',
+      () => router.push('/more/media'),
+    ]);
   return (
     <Screen>
       <SafeAreaView edges={['top']} style={{ flex: 1 }}>

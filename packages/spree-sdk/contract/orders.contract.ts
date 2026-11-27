@@ -135,10 +135,12 @@ describe.runIf(enabled)(`contract: Spree ${env.label}`, () => {
   });
 
   proves('orders.capture', 'captures a pending payment', async (skip) => {
+    // A manual payment (Check) on a placed order stays `checkout` until captured (FINDINGS.md §i).
+    const capturable = (p: Order['payments'][number]) => p.status === 'pending' || p.status === 'checkout';
     const orders = await candidates('unpaid');
-    const order = orders.find((o) => o.status === 'placed' && o.payments.some((p) => p.status === 'pending'));
+    const order = orders.find((o) => o.status === 'placed' && o.payments.some(capturable));
     if (!order) return skip('no order with a pending payment');
-    const payment = order.payments.find((p) => p.status === 'pending');
+    const payment = order.payments.find(capturable);
     if (!payment) return skip('no pending payment');
     const after = await adapter.orders.capture(order, payment);
     expect(after.payments.find((p) => p.id === payment.id)?.status).toBe('completed');

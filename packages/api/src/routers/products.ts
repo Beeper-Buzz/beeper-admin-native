@@ -1,3 +1,4 @@
+import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
 import { requireCapability, router } from '../trpc';
 
@@ -19,6 +20,8 @@ export const productsRouter = router({
         /** Name or SKU. */
         query: z.string().trim().max(120).optional(),
         status: z.enum(['all', 'active', 'draft', 'archived']).default('all'),
+        /** Low-stock products only (inventory.lowStock); ignores status and query. */
+        lowStock: z.boolean().default(false),
         cursor: z.string().nullish(),
         perPage: z.number().int().min(1).max(100).default(25),
       }),
@@ -30,6 +33,14 @@ export const productsRouter = router({
         cursor: input.cursor ?? null,
       };
       if (input.query) params.query = input.query;
+      if (input.lowStock) {
+        if (!ctx.session.probe.capabilities.includes('inventory.lowStock'))
+          throw new TRPCError({
+            code: 'PRECONDITION_FAILED',
+            message: "This store can't list low-stock products.",
+          });
+        params.lowStock = true;
+      }
       return ctx.session.adapter.products.list(params);
     }),
   get: readProducts

@@ -1,11 +1,15 @@
 import type {
+  Address,
   Customer,
   Fulfillment,
+  LibraryImage,
+  ManualPaymentMethod,
   Order,
   OrderListFilter,
   Page,
   Payment,
   Product,
+  ProductImage,
   Promotion,
   PromotionListFilter,
 } from '@instincts/spree-domain';
@@ -37,6 +41,35 @@ export interface RefundInput {
   reasonId?: string | null;
 }
 
+export interface DraftItemInput {
+  variantId: string;
+  /** At least 1. */
+  quantity: number;
+}
+
+/**
+ * What a draft order holds. `updateDraft` replaces it whole: items left out are removed.
+ * Addresses use the domain shape; `stateCode` is the state's abbreviation (`OR`).
+ */
+export interface DraftOrderInput {
+  /** An existing customer, or null for a guest order under `email`. */
+  customerId: string | null;
+  email: string;
+  items: DraftItemInput[];
+  shipAddress: Address;
+  /** null bills the shipping address. */
+  billAddress: Address | null;
+}
+
+export interface PlaceOrderInput {
+  /**
+   * A manual payment method from `paymentMethods`, for the order total. `markPaid` captures it
+   * (the money is in hand); otherwise it stays pending and the order shows a balance due.
+   * null places the order with no payment recorded, which only Spree 5.4+ allows.
+   */
+  payment: { methodId: string; markPaid: boolean } | null;
+}
+
 /**
  * Orders: reads, plus the merchant's actions. Each action returns the order as it now is.
  * An action the store's API can't do throws a `capability` SpreeError; screens gate on the
@@ -53,6 +86,18 @@ export interface OrdersPort {
   cancel(order: OrderRef): Promise<Order>;
   refund(order: OrderRef, input: RefundInput): Promise<Order>;
   refundReasons(): Promise<RefundReason[]>;
+
+  // Creating an order (`orders.create`): a draft on the server, then placed.
+  /** Returns the draft with its shipments' rates once the address allows quoting them. */
+  createDraft(input: DraftOrderInput): Promise<Order>;
+  updateDraft(order: OrderRef, input: DraftOrderInput): Promise<Order>;
+  selectShippingRate(order: OrderRef, fulfillment: FulfillmentRef, rateId: string): Promise<Order>;
+  /** Payment methods that need no card details, for this draft. */
+  paymentMethods(order: OrderRef): Promise<ManualPaymentMethod[]>;
+  /** Completes the draft; the order is then `placed`. */
+  place(order: OrderRef, input: PlaceOrderInput): Promise<Order>;
+  /** Abandons a draft. Placed orders are canceled instead, never discarded. */
+  discardDraft(order: OrderRef): Promise<void>;
 }
 
 // --- Products ------------------------------------------------------------------------------
@@ -63,6 +108,11 @@ export interface ListProductsParams {
   /** Name or SKU. */
   query?: string;
   status?: ProductStatusFilter;
+  /**
+   * Only products with sellable, tracked variants at or under the low-stock threshold, lowest
+   * stock first (`inventory.lowStock`). Ignores `status` and `query`.
+   */
+  lowStock?: boolean;
   cursor?: string | null;
   perPage?: number;
 }
@@ -90,6 +140,52 @@ export interface ProductsPort {
   updateVariant(product: Pick<Product, 'id'>, variantId: string, patch: VariantUpdate): Promise<Product>;
   /** Sets the on-hand count at the store's default stock location. */
   setStock(product: Pick<Product, 'id'>, variantId: string, countOnHand: number): Promise<Product>;
+}
+
+// --- Media ---------------------------------------------------------------------------------
+
+/**
+ * A picked photo. In React Native, `uri` is a local file (`file://…`) that fetch uploads from;
+ * elsewhere (Node, tests) pass its bytes as `blob`. `type` must be an image type the store
+ * accepts: Spree 4.2 takes JPEG, PNG and GIF only.
+ */
+export type MediaFile = { name: string; type: string } & ({ uri: string } | { blob: Blob });
+
+export interface MediaUploadInput {
+  file: MediaFile;
+  alt?: string | null;
+  /** Show it for these variants only; empty or absent shows it for every variant. */
+  variantIds?: string[];
+}
+
+export interface MediaUpdate {
+  /** Empty or null clears it. */
+  alt?: string | null;
+  /** Empty shows it for every variant. Spree 4.x takes at most one. */
+  variantIds?: string[];
+}
+
+export interface ListLibraryParams {
+  /** Product name (or SKU where the store can search it). */
+  query?: string;
+  /** Only images without alt text. */
+  missingAlt?: boolean;
+  cursor?: string | null;
+  perPage?: number;
+}
+
+/**
+ * `products.media`: a product's gallery. Every write returns the gallery as it now is, in display
+ * order. `media.library`: every product image in the store.
+ */
+export interface MediaPort {
+  list(product: Pick<Product, 'id'>): Promise<ProductImage[]>;
+  upload(product: Pick<Product, 'id'>, input: MediaUploadInput): Promise<ProductImage[]>;
+  update(product: Pick<Product, 'id'>, imageId: string, patch: MediaUpdate): Promise<ProductImage[]>;
+  /** Moves an image to `toIndex` (0 = the main image) of the gallery as `list` orders it. */
+  move(product: Pick<Product, 'id'>, imageId: string, toIndex: number): Promise<ProductImage[]>;
+  remove(product: Pick<Product, 'id'>, imageId: string): Promise<ProductImage[]>;
+  library(params: ListLibraryParams): Promise<Page<LibraryImage>>;
 }
 
 // --- Customers -----------------------------------------------------------------------------
@@ -155,6 +251,7 @@ export interface SpreeAdapter {
   readonly products: ProductsPort;
   readonly customers: CustomersPort;
   readonly promotions: PromotionsPort;
+  readonly media: MediaPort;
   /** Present when the store runs the spree_admin_native gem. */
   readonly companion?: CompanionPort;
 }

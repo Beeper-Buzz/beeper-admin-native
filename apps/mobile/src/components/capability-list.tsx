@@ -8,6 +8,7 @@ const GROUPS: { title: string; items: [capability: string, label: string][] }[] 
     title: 'Orders',
     items: [
       ['orders.read', 'View orders'],
+      ['orders.create', 'Create orders'],
       ['shipments.ship', 'Mark shipped'],
       ['orders.capture', 'Capture payments'],
       ['orders.refund', 'Refund'],
@@ -20,6 +21,8 @@ const GROUPS: { title: string; items: [capability: string, label: string][] }[] 
       ['products.read', 'View products'],
       ['products.write', 'Edit products'],
       ['inventory.adjust', 'Adjust stock'],
+      ['products.media', 'Product photos'],
+      ['media.library', 'Media library'],
     ],
   },
   {

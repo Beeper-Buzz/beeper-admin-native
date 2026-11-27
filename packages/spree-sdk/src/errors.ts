@@ -119,6 +119,8 @@ export function extractErrorMessage(data: unknown): string | undefined {
     if (typeof val === 'string') return val;
   }
   if (typeof data.message === 'string' && data.message) return data.message;
+  // Spree 4 API v1 when a model raises: { exception: "Validation failed: …" }
+  if (typeof data.exception === 'string' && data.exception) return data.exception;
   return undefined;
 }
 

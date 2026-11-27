@@ -3,7 +3,7 @@ import { layout, radius, space } from '@instincts/spree-ui';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, View } from 'react-native';
+import { ActivityIndicator, Alert, Pressable, ScrollView, View } from 'react-native';
 import { Button, EmptyState, Screen, TextField } from '@/components/primitives';
 import { Label, Text } from '@/components/text';
 import { type Form, formFor, fromDay, validate } from '@/promotions/form';
@@ -31,15 +31,18 @@ export default function PromotionScreen() {
     qc.setQueryData(trpc.promotions.get.queryKey({ id: p.id }), p);
     void qc.invalidateQueries(trpc.promotions.list.pathFilter());
   };
+  // The form is long and the keyboard covers its end: say so out loud when a save fails.
+  const failed = (e: { message: string }) => Alert.alert("Couldn't save the promotion", e.message);
   const create = useMutation(
     trpc.promotions.create.mutationOptions({
       onSuccess: (p) => {
         done(p);
         router.back();
       },
+      onError: failed,
     }),
   );
-  const update = useMutation(trpc.promotions.update.mutationOptions({ onSuccess: done }));
+  const update = useMutation(trpc.promotions.update.mutationOptions({ onSuccess: done, onError: failed }));
 
   if (!isNew && existing.isPending)
     return (

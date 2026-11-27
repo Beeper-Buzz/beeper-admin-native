@@ -1,5 +1,6 @@
 import * as Sentry from '@sentry/react-native';
 import {
+  reportApiError,
   scrubBreadcrumb,
   scrubEvent,
   scrubLog,
@@ -95,5 +96,27 @@ describe('startSentry', () => {
         beforeSend: scrubEvent,
       }),
     );
+  });
+});
+
+describe('reportApiError (after start)', () => {
+  const err = (data: Record<string, unknown>) => Object.assign(new Error('x'), { data });
+
+  it('reports store 5xx, parse failures and router crashes, tagged with the procedure', () => {
+    expect(reportApiError(err({ spreeKind: 'server', path: 'customers.list', httpStatus: 500 }))).toBe(true);
+    expect(Sentry.captureException).toHaveBeenLastCalledWith(
+      expect.any(Error),
+      expect.objectContaining({ tags: { api_procedure: 'customers.list', spree_kind: 'server' } }),
+    );
+    expect(reportApiError(err({ spreeKind: 'parse', path: 'orders.get' }))).toBe(true);
+    expect(reportApiError(err({ spreeKind: null, code: 'INTERNAL_SERVER_ERROR', path: 'x' }))).toBe(true);
+  });
+
+  it('leaves expected failures to the UI', () => {
+    for (const spreeKind of ['auth', 'offline', 'invalid', 'notFound', 'capability', 'rateLimited']) {
+      expect(reportApiError(err({ spreeKind, path: 'x' }))).toBe(false);
+    }
+    expect(reportApiError(err({ spreeKind: null, code: 'BAD_REQUEST', path: 'x' }))).toBe(false);
+    expect(reportApiError(err({ spreeKind: null, code: 'PRECONDITION_FAILED', path: 'x' }))).toBe(false);
   });
 });

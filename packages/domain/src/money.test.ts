@@ -5,6 +5,7 @@ import {
   formatMoney,
   Money,
   money,
+  multiplyMoney,
   negateMoney,
   sumMoney,
   toMinorUnits,
@@ -55,5 +56,12 @@ describe('Money', () => {
     expect(formatMoney(money('1234.5', 'USD'), 'en-US')).toBe('$1,234.50');
     expect(formatMoney(money('-42', 'USD'), 'en-US')).toBe('-$42.00');
     expect(formatMoney(money('1234.5', 'EUR'), 'de-DE')).toBe('1.234,50\u00a0€');
+  });
+
+  it('multiplies a unit price by a quantity in minor units', () => {
+    expect(multiplyMoney(money('19.99', 'USD'), 3)).toEqual({ amount: '59.97', currency: 'USD' });
+    expect(multiplyMoney(money('0.10', 'USD'), 0)).toEqual({ amount: '0.00', currency: 'USD' });
+    expect(multiplyMoney(money('500', 'JPY'), 2)).toEqual({ amount: '1000', currency: 'JPY' });
+    expect(() => multiplyMoney(money('1', 'USD'), 1.5)).toThrow();
   });
 });

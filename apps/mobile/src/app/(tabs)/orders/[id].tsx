@@ -121,7 +121,10 @@ export default function OrderScreen() {
                   <MoneyText value={p.amount} />
                 </View>
                 <View style={styles.actions}>
-                  {can('orders.capture') && p.status === 'pending' && p.canCapture !== false ? (
+                  {can('orders.capture') &&
+                  // A manual payment (Check) recorded on a placed order waits in `checkout` until captured.
+                  (p.status === 'pending' || (p.status === 'checkout' && order.status === 'placed')) &&
+                  p.canCapture !== false ? (
                     <Button
                       title="Capture"
                       size="small"

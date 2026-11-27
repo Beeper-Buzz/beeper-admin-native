@@ -1,9 +1,7 @@
-import { layout, space } from '@instincts/spree-ui';
 import { useQuery } from '@tanstack/react-query';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
-import { ScrollView } from 'react-native';
-import { Button, EmptyState, Screen, SpreeNumberText, TextField } from '@/components/primitives';
+import { Button, EmptyState, Screen, Sheet, SpreeNumberText, TextField } from '@/components/primitives';
 import { Text } from '@/components/text';
 import { useOrderMutations } from '@/orders/use-order-mutations';
 import { useTRPC } from '@/trpc/trpc';
@@ -25,47 +23,42 @@ export default function ShipSheet() {
     );
 
   return (
-    <Screen>
-      <ScrollView
-        contentContainerStyle={{ padding: layout.gutter, gap: space[4] }}
-        keyboardShouldPersistTaps="handled"
-      >
-        <Text size="title2" font="display">
-          Mark shipped
+    <Sheet>
+      <Text size="title2" font="display">
+        Mark shipped
+      </Text>
+      <Text tone="muted">
+        {order.number} · <SpreeNumberText value={fulfillment.number} />
+        {fulfillment.methodName ? ` · ${fulfillment.methodName}` : ''}
+      </Text>
+      <TextField
+        label="Tracking number or link (optional)"
+        value={tracking}
+        onChangeText={setTracking}
+        autoCapitalize="characters"
+        autoCorrect={false}
+        returnKeyType="done"
+        placeholder="1Z999AA10123456784"
+      />
+      {ship.error ? (
+        <Text size="footnote" tone="critical" accessibilityLiveRegion="polite">
+          {ship.error.message}
         </Text>
-        <Text tone="muted">
-          {order.number} · <SpreeNumberText value={fulfillment.number} />
-          {fulfillment.methodName ? ` · ${fulfillment.methodName}` : ''}
-        </Text>
-        <TextField
-          label="Tracking number or link (optional)"
-          value={tracking}
-          onChangeText={setTracking}
-          autoCapitalize="characters"
-          autoCorrect={false}
-          returnKeyType="done"
-          placeholder="1Z999AA10123456784"
-        />
-        {ship.error ? (
-          <Text size="footnote" tone="critical" accessibilityLiveRegion="polite">
-            {ship.error.message}
-          </Text>
-        ) : null}
-        <Button
-          title="Mark shipped"
-          loading={ship.isPending}
-          onPress={() =>
-            ship.mutate(
-              {
-                order: { id: order.id, number: order.number },
-                fulfillment: { id: fulfillment.id, number: fulfillment.number },
-                tracking: tracking.trim() || null,
-              },
-              { onSuccess: () => router.back() },
-            )
-          }
-        />
-      </ScrollView>
-    </Screen>
+      ) : null}
+      <Button
+        title="Mark shipped"
+        loading={ship.isPending}
+        onPress={() =>
+          ship.mutate(
+            {
+              order: { id: order.id, number: order.number },
+              fulfillment: { id: fulfillment.id, number: fulfillment.number },
+              tracking: tracking.trim() || null,
+            },
+            { onSuccess: () => router.back() },
+          )
+        }
+      />
+    </Sheet>
   );
 }

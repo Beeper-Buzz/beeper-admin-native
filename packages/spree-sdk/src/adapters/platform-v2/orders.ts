@@ -4,6 +4,7 @@ import type { ListOrdersParams, OrdersPort } from '../../ports';
 import type { QueryObject } from '../../query';
 import type { Transport } from '../../transport';
 import type { Document } from '../jsonapi';
+import { unsupportedOrderCreation } from '../unsupported';
 import { mapOrderDocument } from './mapOrder';
 
 const BASE = '/api/v2/platform/orders';
@@ -99,5 +100,6 @@ export function platformV2Orders(transport: Transport): OrdersPort {
     async refundReasons() {
       throw unsupported('orders.refund');
     },
+    ...unsupportedOrderCreation,
   };
 }

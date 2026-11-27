@@ -4,6 +4,7 @@ import { unsupported } from '../../errors';
 import type { ListOrdersParams, OrdersPort } from '../../ports';
 import type { QueryObject } from '../../query';
 import type { Transport } from '../../transport';
+import { apiV1DraftOrders } from './draftOrders';
 import { mapV1Order, type V1Order } from './mapOrder';
 
 const BASE = '/api/v1/orders';
@@ -92,6 +93,8 @@ export function apiV1Orders(transport: Transport, companion?: CompanionPort): Or
       if (!companion) throw unsupported('orders.refund');
       return companion.refundReasons();
     },
+
+    ...apiV1DraftOrders(transport, companion),
   };
   return port;
 }

@@ -18,7 +18,7 @@ module SpreeAdminNative
         today: { orders: today.count, sales: format('%.2f', today.sum(:total)) },
         orders_to_fulfill: placed.where(shipment_state: UNFULFILLED).count,
         payments_due: placed.where(payment_state: UNPAID).count,
-        low_stock_variants: low_stock_count,
+        low_stock_variants: LowStock.variant_count,
         generated_at: @now.iso8601
       }
     end
@@ -29,12 +29,5 @@ module SpreeAdminNative
       Spree::Order.where.not(completed_at: nil).where(state: %w[complete resumed awaiting_return])
     end
 
-    def low_stock_count
-      Spree::StockItem.joins(:variant)
-                      .where(spree_variants: { deleted_at: nil })
-                      .where(spree_stock_items: { deleted_at: nil })
-                      .where('spree_stock_items.count_on_hand <= ?', SpreeAdminNative.config.low_stock_threshold)
-                      .distinct.count(:variant_id)
-    end
   end
 end

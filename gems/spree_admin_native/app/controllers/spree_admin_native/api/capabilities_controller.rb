@@ -20,7 +20,8 @@ module SpreeAdminNative
       private
 
       def capabilities
-        list = %w[notifications.push analytics.summary orders.refund]
+        # orders.create: API v1 creates orders; the gem adds manual payment methods and draft deletion.
+        list = %w[notifications.push analytics.summary orders.refund orders.create inventory.lowStock media.library]
         # Coupon codes live on the promotion until Spree 5 moved them to their own table.
         list += %w[promotions.read promotions.write] if Spree::Promotion.column_names.include?('code')
         list + SpreeAdminNative.config.extra_capabilities

@@ -201,4 +201,24 @@ describe('transport', () => {
     expect(calls[0]?.init).toMatchObject({ method: 'PATCH', body: '{"a":1}' });
     expect(calls[0]?.init.headers).toMatchObject({ 'Content-Type': 'application/json' });
   });
+
+  it('sends FormData as is, leaving Content-Type to fetch, and resends it after a refresh', async () => {
+    const { fn, calls } = fakeFetch({ status: 401 }, { status: 201, body: { id: 1 } });
+    const auth = { headers: async () => ({ 'X-Spree-Token': 'k' }), refresh: vi.fn(async () => {}) };
+    const t = createTransport({
+      baseUrl: 'https://shop.test',
+      fetch: fn,
+      auth,
+      headers: { 'Content-Type': 'application/json' },
+    });
+    const form = new FormData();
+    form.append('image[alt]', 'Front');
+    await t.request({ method: 'POST', path: '/x', body: form });
+    expect(calls).toHaveLength(2);
+    for (const call of calls) {
+      expect(call.init.body).toBe(form);
+      expect(call.init.headers).not.toHaveProperty('Content-Type');
+      expect(call.init.headers).toMatchObject({ 'X-Spree-Token': 'k' });
+    }
+  });
 });

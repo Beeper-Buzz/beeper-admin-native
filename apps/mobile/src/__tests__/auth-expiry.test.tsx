@@ -2,6 +2,7 @@ import type { Session } from '@instincts/spree-api';
 import {
   SpreeError,
   unsupportedCustomers,
+  unsupportedMedia,
   unsupportedProducts,
   unsupportedPromotions,
 } from '@instincts/spree-sdk';
@@ -17,6 +18,7 @@ const unusedAreas = {
   products: unsupportedProducts,
   customers: unsupportedCustomers,
   promotions: unsupportedPromotions,
+  media: unsupportedMedia,
 };
 const unusedActions = {
   ship: unused,
@@ -24,6 +26,12 @@ const unusedActions = {
   cancel: unused,
   refund: unused,
   refundReasons: unused,
+  createDraft: unused,
+  updateDraft: unused,
+  selectShippingRate: unused,
+  paymentMethods: unused,
+  place: unused,
+  discardDraft: unused,
 };
 
 const session = (kind: 'auth' | 'network'): Session => ({

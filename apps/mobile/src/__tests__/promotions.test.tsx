@@ -154,4 +154,27 @@ describe('promotions screens', () => {
       expect(promotions.update).toHaveBeenLastCalledWith({ id: '7' }, { expiresAt: expect.any(String) }),
     );
   });
+
+  it('shows a new promotion in the list after creating it', async () => {
+    mockParams = { id: 'new' };
+    const { promotions, ui } = setup();
+    let items = [spring];
+    promotions.list.mockImplementation(async () => ({ items, nextCursor: null, totalCount: items.length }));
+    promotions.create.mockImplementation(async () => {
+      const created = { ...spring, id: '8', name: 'Ten off', code: 'TENOFF' };
+      items = [created, spring];
+      return created;
+    });
+    await ui(
+      <>
+        <PromotionsScreen />
+        <PromotionScreen />
+      </>,
+    );
+    expect(await screen.findByText('Spring sale')).toBeTruthy();
+    await fireEvent.changeText(screen.getByLabelText('Name'), 'Ten off');
+    await fireEvent.changeText(screen.getByLabelText('Percent off the order'), '10');
+    await fireEvent.press(screen.getByText('Create promotion'));
+    expect(await screen.findByText('TENOFF · 20% off')).toBeTruthy();
+  });
 });

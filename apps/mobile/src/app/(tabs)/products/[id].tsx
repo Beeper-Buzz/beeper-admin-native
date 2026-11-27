@@ -8,6 +8,7 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'reac
 import { ListRow } from '@/components/list-row';
 import { Button, EmptyState, MoneyText, Screen, TextField } from '@/components/primitives';
 import { Label, Text } from '@/components/text';
+import { ProductGallery } from '@/media/product-gallery';
 import { useProductSaved } from '@/products/products';
 import { useCan } from '@/session/session';
 import { useTheme } from '@/theme/theme';
@@ -62,7 +63,9 @@ export default function ProductScreen() {
         keyboardShouldPersistTaps="handled"
         contentContainerStyle={{ padding: layout.gutter, gap: space[4] }}
       >
-        {product.imageUrl ? (
+        {can('products.media') ? (
+          <ProductGallery productId={product.id} />
+        ) : product.imageUrl ? (
           <Image
             source={{ uri: product.imageUrl }}
             accessibilityIgnoresInvertColors

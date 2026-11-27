@@ -73,7 +73,11 @@ export default function HomeScreen() {
                 <Pressable
                   key={filter}
                   accessibilityRole="button"
-                  onPress={() => router.push('/orders')}
+                  onPress={() =>
+                    filter === 'low-stock'
+                      ? router.navigate({ pathname: '/products', params: { filter: 'lowStock' } })
+                      : router.navigate({ pathname: '/orders', params: { filter } })
+                  }
                   style={({ pressed }) => [
                     styles.todo,
                     { backgroundColor: pressed ? colors.surfaceSunk : colors.surface },

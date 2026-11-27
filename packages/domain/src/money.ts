@@ -74,6 +74,12 @@ export function sumMoney(values: readonly Money[], currency: string): Money {
   return values.reduce<Money>((total, v) => addMoney(total, v), money('0', currency));
 }
 
+/** A unit price times a whole quantity (a line total). */
+export function multiplyMoney(value: Money, quantity: number): Money {
+  if (!Number.isInteger(quantity)) throw new Error(`Quantity must be a whole number, got ${quantity}`);
+  return fromMinorUnits(toMinorUnits(value) * BigInt(quantity), value.currency);
+}
+
 export function negateMoney(value: Money): Money {
   return fromMinorUnits(-toMinorUnits(value), value.currency);
 }
