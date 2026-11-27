@@ -81,3 +81,17 @@ APP_DISTRIBUTION=<name> npx eas-cli submit --profile production --platform ios
 
 Set `APP_DISTRIBUTION` as an environment variable in that EAS project too, so cloud builds and
 `eas update` use the same distribution.
+
+## Over-the-air updates
+
+JavaScript-only changes can ship without a store build:
+
+```sh
+cd apps/mobile
+APP_DISTRIBUTION=<name> npx eas-cli update --channel production --message "What changed"
+```
+
+The runtime version is a fingerprint of the app's native code and config
+(`runtimeVersion: { policy: 'fingerprint' }`), so an update reaches only builds made from the same
+native code. After adding or upgrading a native module or changing a config plugin, make a new
+build first; an update published from that code reaches only that build and later ones.

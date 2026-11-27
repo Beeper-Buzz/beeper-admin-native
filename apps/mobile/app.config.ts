@@ -38,8 +38,10 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   ...(distribution.eas?.owner ? { owner: distribution.eas.owner } : {}),
   scheme: distribution.scheme,
   version: distribution.version ?? '0.1.0',
-  // OTA updates only reach builds of the same marketing version.
-  runtimeVersion: { policy: 'appVersion' },
+  // OTA updates only reach builds with the same native code: the runtime version is a
+  // fingerprint of native dependencies and config, so adding a native module (or changing a
+  // plugin) needs a new build, and an update can never land on a build that lacks its modules.
+  runtimeVersion: { policy: 'fingerprint' },
   ...(projectId ? { updates: { url: `https://u.expo.dev/${projectId}` } } : {}),
   orientation: 'default',
   userInterfaceStyle: 'automatic',
