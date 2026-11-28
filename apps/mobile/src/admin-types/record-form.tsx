@@ -33,10 +33,13 @@ export function RecordForm({
   type,
   record,
   types,
+  prefill,
 }: {
   type: AdminResource;
   record: AdminRecord | null;
   types: readonly AdminResource[];
+  /** A new record's starting values over the fields' defaults (the menu builder's inline add). */
+  prefill?: Record<string, unknown> | null;
 }) {
   const trpc = useTRPC();
   const qc = useQueryClient();
@@ -48,7 +51,17 @@ export function RecordForm({
   const shown = record ? type.fields : writable;
 
   const [base, setBase] = useState<Drafts>(() =>
-    record ? draftsFor(type.fields, record.values) : defaultDrafts(type.fields),
+    record
+      ? draftsFor(type.fields, record.values)
+      : {
+          ...defaultDrafts(type.fields),
+          ...(prefill
+            ? draftsFor(
+                type.fields.filter((f) => f.name in prefill),
+                prefill,
+              )
+            : {}),
+        },
   );
   const [drafts, setDrafts] = useState<Drafts>(base);
   const [touched, setTouched] = useState(false);
@@ -80,7 +93,11 @@ export function RecordForm({
   }, [record, type.fields]);
 
   const getKey = (id: string) => trpc.resources.get.queryKey({ key: type.key, id });
-  const listChanged = () => void qc.invalidateQueries(trpc.resources.list.pathFilter());
+  const listChanged = () => {
+    void qc.invalidateQueries(trpc.resources.list.pathFilter());
+    // A tree view (menu builder) shows the same records nested.
+    void qc.invalidateQueries(trpc.resources.tree.pathFilter());
+  };
   const toList = () => router.dismissTo({ pathname: '/more/admin/[key]', params: { key: type.key } });
   const failed = (title: string) => (e: MutationError) => {
     setServer(formErrors(type.fields, e));

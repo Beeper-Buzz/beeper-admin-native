@@ -4,6 +4,9 @@ import {
   type AdminManifest,
   AdminRecord,
   AdminResource,
+  type AdminTree,
+  type AdminTreeNode,
+  adminReference,
   gemAtLeast,
 } from '@instincts/spree-domain';
 import { isSpreeError, SpreeError } from '../errors';
@@ -31,6 +34,8 @@ export interface GemAdminField {
   hint?: string | null;
   /** 0.5 */
   default?: unknown;
+  /** 0.7, `link` fields: kind names, `{ kind, resource, label }` or a kind-to-resource map. */
+  kinds?: unknown;
 }
 
 export interface GemAdminFilter {
@@ -70,6 +75,18 @@ export interface GemAdminResource {
   update?: boolean;
   destroy?: boolean;
   actions?: GemAdminAction[];
+  /** 0.7: `{ type: 'tree', parent, position, group? }`. */
+  view?: unknown;
+}
+
+/** 0.7 `GET resources/:key/tree`: a record with its children. */
+export interface GemAdminTreeNode extends GemAdminRecord {
+  children?: GemAdminTreeNode[];
+}
+
+export interface GemAdminTree {
+  data: GemAdminTreeNode[];
+  meta?: { group?: { id: string | number; title?: string | null } | null };
 }
 
 export interface GemAdminRecord {
@@ -112,6 +129,7 @@ const mapFields = (fields: GemAdminField[] | undefined, uploads: boolean) =>
       resource: f.resource ?? null,
       hint: f.hint ?? null,
       default: f.default ?? null,
+      kinds: f.kinds ?? null,
     }));
 
 /**
@@ -149,8 +167,23 @@ export function mapGemResource(r: GemAdminResource, gemVersion: string | null = 
       destructive: !!a.destructive,
       inputs: mapFields(a.inputs, uploads),
     })),
+    view: r.view ?? null,
   });
   return parsed.success ? parsed.data : null;
+}
+
+/** A tree node and its children, in the order the store sent them (position order). */
+export function mapGemTreeNode(n: GemAdminTreeNode): AdminTreeNode {
+  const children = Array.isArray(n.children) ? n.children : [];
+  return { ...mapGemRecord(n), children: children.map(mapGemTreeNode) };
+}
+
+export function mapGemTree(body: GemAdminTree): AdminTree {
+  const g = body.meta?.group;
+  return {
+    nodes: (Array.isArray(body.data) ? body.data : []).map(mapGemTreeNode),
+    group: g ? adminReference({ id: String(g.id), title: g.title || `#${g.id}` }) : null,
+  };
 }
 
 export function mapGemRecord(r: GemAdminRecord): AdminRecord {
@@ -310,6 +343,24 @@ export function companionResources(transport: Transport): ResourcesPort {
           });
         throw e;
       }
+    },
+    async tree(key, group) {
+      const res = await transport.request<GemAdminTree>({
+        path: path(key, 'tree'),
+        ...(group === null ? {} : { query: { group } }),
+      });
+      return mapGemTree(res.data);
+    },
+    async moveTree(key, group, nodes) {
+      const res = await transport.request<GemAdminTree>({
+        method: 'PATCH',
+        path: path(key, 'tree'),
+        body: {
+          group,
+          nodes: nodes.map((n) => ({ id: n.id, parent_id: n.parentId, position: n.position })),
+        },
+      });
+      return mapGemTree(res.data);
     },
   };
 }

@@ -57,6 +57,8 @@ services:
       - ../../gems/spree_admin_native:/gems/spree_admin_native:ro
       # Demo admin types (companion gem 0.5) over Spree's own models, for the app and contract tests.
       - ./4.2/initializers/admin_native_demo_types.rb:/app/config/initializers/admin_native_demo_types.rb:ro
+      # Demo inbox and visitors adapters (companion gem 0.7) over demo tables, for the contract tests.
+      - ./4.2/initializers/admin_native_demo_inbox.rb:/app/config/initializers/admin_native_demo_inbox.rb:ro
       - spree42_storage:/app/storage
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS -o /dev/null 'http://localhost:3000/api/v2/storefront/products?per_page=1' || exit 1"]

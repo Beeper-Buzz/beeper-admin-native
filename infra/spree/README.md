@@ -52,6 +52,22 @@ The 4.2 store also mounts `4.2/initializers/admin_native_demo_types.rb` into
 states referencing countries) for the app's generic admin screens and
 `packages/spree-sdk/contract/resources.contract.ts`. Restart the container after editing it.
 
+It also mounts `4.2/initializers/admin_native_demo_inbox.rb` (companion gem 0.7, demo only): an
+inbox adapter and a visitors adapter over three small tables the initializer creates if they
+don't exist (`admin_native_demo_conversations`, `admin_native_demo_messages`,
+`admin_native_demo_sessions`), and a demo tree, `taxons` grouped by the hidden `taxonomies`
+type. It seeds nothing; contract tests create data through the runner:
+
+```sh
+docker compose -f infra/spree/docker-compose.yml exec -T spree42 bin/rails runner \
+  'puts AdminNativeDemo.inbound!(name: "Ada", email: "ada@example.com", body: "Is this in stock?").to_json'
+# => {"conversation_id":"1","message_id":"1"}; also pushes to paired devices (throttled)
+docker compose -f infra/spree/docker-compose.yml exec -T spree42 bin/rails runner \
+  'puts AdminNativeDemo.visit!(name: "Ada", email: "ada@example.com", url: "/products/mug", title: "Mug").to_json'
+# => {"session_id":"1"}; pass session_id: to add page views, at: for an older visit
+docker compose -f infra/spree/docker-compose.yml exec -T spree42 bin/rails runner 'AdminNativeDemo.clear!'
+```
+
 ## Credentials
 
 The same on both stores:

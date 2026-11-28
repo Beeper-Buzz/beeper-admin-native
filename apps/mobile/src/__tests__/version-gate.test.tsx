@@ -2,11 +2,14 @@ import type { Session } from '@instincts/spree-api';
 import {
   type AppVersionInfo,
   type CompanionPort,
+  unsupportedCarts,
   unsupportedCustomers,
+  unsupportedInbox,
   unsupportedMedia,
   unsupportedProducts,
   unsupportedPromotions,
   unsupportedResources,
+  unsupportedVisitors,
 } from '@instincts/spree-sdk';
 import * as Sentry from '@sentry/react-native';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
@@ -69,6 +72,9 @@ function session(appVersion: CompanionPort['appVersion'], capabilities = ['order
       promotions: unsupportedPromotions,
       media: unsupportedMedia,
       resources: unsupportedResources,
+      inbox: unsupportedInbox,
+      carts: unsupportedCarts,
+      visitors: unsupportedVisitors,
       companion: { appVersion } as unknown as CompanionPort,
     },
   };

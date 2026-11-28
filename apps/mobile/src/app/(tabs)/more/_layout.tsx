@@ -40,6 +40,30 @@ export default function MoreLayout() {
           headerShown: false,
         }}
       />
+      {/* The menu builder's Move sheet and its groups (menu locations). */}
+      <Stack.Screen
+        name="admin/move"
+        options={{
+          presentation: 'formSheet',
+          sheetAllowedDetents: 'fitToContents',
+          sheetGrabberVisible: true,
+          headerShown: false,
+        }}
+      />
+      <Stack.Screen
+        name="admin/groups"
+        options={{
+          presentation: 'formSheet',
+          sheetAllowedDetents: 'fitToContents',
+          sheetGrabberVisible: true,
+          headerShown: false,
+        }}
+      />
+      {/* Customers live here when the Inbox tab takes their place. */}
+      <Stack.Screen name="customers/index" options={{ title: 'Customers', headerLargeTitle: true }} />
+      <Stack.Screen name="customers/[id]" options={{ title: '' }} />
+      <Stack.Screen name="visitors/index" options={{ title: 'Visitors', headerLargeTitle: true }} />
+      <Stack.Screen name="visitors/[id]" options={{ title: 'Visitor' }} />
     </Stack>
   );
 }

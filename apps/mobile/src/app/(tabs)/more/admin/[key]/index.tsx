@@ -5,6 +5,8 @@ import { useState } from 'react';
 import { ActivityIndicator, FlatList, Pressable, RefreshControl, View } from 'react-native';
 import { type FilterChoice, type FilterChoices, filterValues } from '@/admin-types/filters';
 import { ListFilters } from '@/admin-types/list-filters';
+import { TreeScreen } from '@/admin-types/tree/tree-screen';
+import { treeView } from '@/admin-types/tree/tree-type';
 import { useAdminType } from '@/admin-types/use-admin-types';
 import { listDetail } from '@/admin-types/values';
 import { ListRow } from '@/components/list-row';
@@ -34,7 +36,8 @@ export default function AdminTypeListScreen() {
       },
       { getNextPageParam: (page) => page.nextCursor ?? undefined },
     ),
-    enabled: !!type,
+    // A tree view (gem 0.7, the menu builder) loads its own tree instead.
+    enabled: !!type && !treeView(type),
   });
   const items = list.data?.pages.flatMap((p) => p.items) ?? [];
   const narrowed = !!query || Object.keys(values).length > 0;
@@ -50,6 +53,13 @@ export default function AdminTypeListScreen() {
             body={error?.message ?? "This store doesn't offer this admin type any more."}
           />
         )}
+      </Screen>
+    );
+
+  if (treeView(type))
+    return (
+      <Screen>
+        <TreeScreen type={type} types={types ?? []} />
       </Screen>
     );
 

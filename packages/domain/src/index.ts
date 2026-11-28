@@ -1,8 +1,11 @@
 export * from './address';
+export * from './admin-link';
 export * from './admin-resource';
+export * from './admin-tree';
 export * from './catalog';
 export * from './common';
 export * from './customer';
+export * from './inbox';
 export * from './media';
 export * from './money';
 export * from './order';
@@ -10,3 +13,4 @@ export * from './product';
 export * from './promotion';
 export * from './semver';
 export * from './summary';
+export * from './visitors';

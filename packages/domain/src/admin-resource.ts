@@ -1,4 +1,6 @@
 import { z } from 'zod';
+import { AdminLinkKind, normalizeLinkKinds } from './admin-link';
+import { type AdminTreeView, normalizeView } from './admin-tree';
 import { Id, tolerantEnum } from './common';
 
 /**
@@ -29,6 +31,8 @@ export const ADMIN_FIELD_TYPES = [
   'image',
   /** Gem 0.5: an attached file, read as `{ url, filename, content_type, byte_size }`. */
   'file',
+  /** Gem 0.7: a typed link, read as `{ kind, url, id, title }` (see `adminLink`). */
+  'link',
   'readonly',
 ] as const;
 export const AdminFieldType = tolerantEnum(ADMIN_FIELD_TYPES);
@@ -99,6 +103,15 @@ export const AdminField = z.object({
     .transform(
       (v): AdminDefault => (v === undefined || typeof v === 'function' ? null : (v as AdminDefault)),
     ),
+  /**
+   * Gem 0.7, `link` fields: what the link can point at, as the host listed them. Empty when it
+   * listed none (and for other fields); `linkKinds` then gives the spec's four.
+   */
+  kinds: z
+    .unknown()
+    .default(null)
+    .transform((v): AdminLinkKind[] => (v === undefined || v === null ? [] : normalizeLinkKinds(v)))
+    .pipe(z.array(AdminLinkKind)),
 });
 export type AdminField = z.infer<typeof AdminField>;
 
@@ -156,6 +169,11 @@ export const AdminResource = z.object({
   update: z.boolean().default(false),
   destroy: z.boolean().default(false),
   actions: z.array(AdminAction).default([]),
+  /** Gem 0.7: a tree view (records nest and reorder), or null for the flat list. */
+  view: z
+    .unknown()
+    .default(null)
+    .transform((v): AdminTreeView | null => normalizeView(v)),
 });
 export type AdminResource = z.infer<typeof AdminResource>;
 

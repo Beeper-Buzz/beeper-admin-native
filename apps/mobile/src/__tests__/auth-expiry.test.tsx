@@ -1,11 +1,14 @@
 import type { Session } from '@instincts/spree-api';
 import {
   SpreeError,
+  unsupportedCarts,
   unsupportedCustomers,
+  unsupportedInbox,
   unsupportedMedia,
   unsupportedProducts,
   unsupportedPromotions,
   unsupportedResources,
+  unsupportedVisitors,
 } from '@instincts/spree-sdk';
 import { useQuery } from '@tanstack/react-query';
 import { render, screen, waitFor } from '@testing-library/react-native';
@@ -20,6 +23,9 @@ const unusedAreas = {
   customers: unsupportedCustomers,
   promotions: unsupportedPromotions,
   resources: unsupportedResources,
+  inbox: unsupportedInbox,
+  carts: unsupportedCarts,
+  visitors: unsupportedVisitors,
   media: unsupportedMedia,
 };
 const unusedActions = {

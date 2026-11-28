@@ -1,11 +1,14 @@
 import { unsupported } from '../../errors';
 import type {
+  CartsPort,
   CustomersPort,
+  InboxPort,
   MediaPort,
   OrdersPort,
   ProductsPort,
   PromotionsPort,
   ResourcesPort,
+  VisitorsPort,
 } from '../../ports';
 
 const refuse = (capability: string) => async (): Promise<never> => {
@@ -52,6 +55,32 @@ export const unsupportedResources: ResourcesPort = {
   remove: refuse('admin.resources'),
   perform: refuse('admin.resources'),
   upload: refuse('admin.resources'),
+  tree: refuse('admin.resources'),
+  moveTree: refuse('admin.resources'),
+};
+
+/** The inbox needs the companion gem 0.7 with a host inbox adapter (`inbox`). */
+export const unsupportedInbox: InboxPort = {
+  list: refuse('inbox'),
+  get: refuse('inbox'),
+  messages: refuse('inbox'),
+  reply: refuse('inbox'),
+  update: refuse('inbox'),
+  markRead: refuse('inbox'),
+  summary: refuse('inbox'),
+};
+
+/** Carts need the companion gem 0.7 (`carts`). */
+export const unsupportedCarts: CartsPort = {
+  list: refuse('carts'),
+  get: refuse('carts'),
+};
+
+/** Visitors need the companion gem 0.7 with a host visitors adapter (`visitors`). */
+export const unsupportedVisitors: VisitorsPort = {
+  list: refuse('visitors'),
+  get: refuse('visitors'),
+  startConversation: refuse('visitors'),
 };
 
 /** Order creation for a family the contract suite hasn't proven (`orders.create`). */

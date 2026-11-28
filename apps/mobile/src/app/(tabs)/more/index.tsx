@@ -14,6 +14,23 @@ export default function MoreScreen() {
   const can = useCan();
   const probe = state.store?.probe;
   const links: LinkItem[] = [];
+  // The Inbox tab takes the Customers tab's place; Customers is here instead.
+  if (can('inbox') && can('customers.read'))
+    links.push({
+      key: 'customers',
+      title: 'Customers',
+      subtitle: 'Everyone who has an account or ordered',
+      onPress: () => router.push('/more/customers'),
+    });
+  if (can('visitors') || can('carts'))
+    links.push({
+      key: 'visitors',
+      title: 'Visitors',
+      subtitle: can('visitors')
+        ? 'Who is on the store now, and their carts'
+        : 'Carts in progress and abandoned',
+      onPress: () => router.push('/more/visitors'),
+    });
   if (can('promotions.read'))
     links.push({
       key: 'promotions',

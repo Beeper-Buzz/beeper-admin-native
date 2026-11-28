@@ -5,11 +5,14 @@ import {
   type FetchLike,
   type SpreeAdapter,
   type StoreProbe,
+  unsupportedCarts,
   unsupportedCustomers,
+  unsupportedInbox,
   unsupportedMedia,
   unsupportedProducts,
   unsupportedPromotions,
   unsupportedResources,
+  unsupportedVisitors,
 } from '@instincts/spree-sdk';
 import { describe, expect, it, vi } from 'vitest';
 import fixtures from '../../spree-sdk/test/fixtures/app-version-0.6.json';
@@ -38,6 +41,9 @@ function ctx(capabilities: string[], gem?: CompanionPort): Context {
     promotions: unsupportedPromotions,
     media: unsupportedMedia,
     resources: unsupportedResources,
+    inbox: unsupportedInbox,
+    carts: unsupportedCarts,
+    visitors: unsupportedVisitors,
     ...(gem ? { companion: gem } : {}),
   };
   return { session: { probe: probe(capabilities), adapter } };

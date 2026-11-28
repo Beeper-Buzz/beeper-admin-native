@@ -4,6 +4,20 @@ import type { Transport } from '../transport';
 import { type AppVersionInfo, fetchAppVersion } from './appVersion';
 
 export { APP_VERSION_TIMEOUT_MS, type AppVersionInfo, parseAppVersion } from './appVersion';
+export {
+  companionInbox,
+  MESSAGE_MAX_LENGTH,
+  mapGemConversation,
+  mapGemCustomerContext,
+  mapGemMessage,
+} from './inbox';
+export {
+  companionCarts,
+  companionVisitors,
+  mapGemCart,
+  mapGemSession,
+  mapGemSessionDetail,
+} from './visitors';
 
 /** Client for the optional `spree_admin_native` gem (gems/spree_admin_native). */
 const BASE = '/api/admin_native/v1';
@@ -94,6 +108,10 @@ interface SummaryBody {
   payments_due: number;
   low_stock_variants: number;
   generated_at: string;
+  /** 0.7, with `visitors`. */
+  visitors_online?: number | null;
+  /** 0.7, with `carts`. */
+  active_carts?: number | null;
 }
 
 /** `transport` must carry auth (device token or admin API key). */
@@ -109,6 +127,8 @@ export function companion(transport: Transport): CompanionPort {
         paymentsDue: b.payments_due,
         lowStockVariants: b.low_stock_variants,
         generatedAt: b.generated_at,
+        visitorsOnline: b.visitors_online ?? null,
+        activeCarts: b.active_carts ?? null,
       });
     },
     async lowStockProducts(page, perPage) {

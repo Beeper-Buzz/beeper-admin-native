@@ -31,7 +31,7 @@ module SpreeAdminNative
   #   # Elsewhere (a fork, an extension), in any load order:
   #   SpreeAdminNative.resources.configure('menu_items') { |r| r.field :badge, :string }
   module Resources
-    TYPES = %w[string text integer decimal boolean date datetime enum url email color json reference image file readonly].freeze
+    TYPES = %w[string text integer decimal boolean date datetime enum url email color json reference image file link readonly].freeze
 
     # Never exposed, whatever a registration says.
     SECRET = /password|token|secret|digest|encrypted|api_key|salt|otp|private_key|credentials|stream_key|signed_payload|jwt|cvv/i.freeze
@@ -41,6 +41,12 @@ module SpreeAdminNative
 
     # Field types backed by an ActiveStorage attachment; written with an upload's signed_id.
     ATTACHMENT_TYPES = %i[image file].freeze
+
+    # View types besides the flat list (0.7).
+    VIEW_TYPES = %i[tree].freeze
+
+    # The link kind that holds a URL; other kinds name a registered type (`kinds:`).
+    LINK_URL_KIND = 'url'.freeze
 
     class << self
       # A value as the app reads it: ISO 8601 times and dates, decimals as strings.
@@ -146,6 +152,19 @@ module SpreeAdminNative
           r.field :sku, :string, readonly: true
           r.field :created_at, readonly: true
         end
+        registry.register_builtin('spree_taxons') do |r|
+          r.model 'Spree::Taxon'
+          r.label 'Taxons'
+          r.singular 'Taxon'
+          r.group 'Spree'
+          r.icon 'tag'
+          r.title ->(taxon) { taxon.respond_to?(:pretty_name) ? taxon.pretty_name : taxon.name }
+          r.subtitle :permalink
+          r.search :name
+          r.field :name, :string, readonly: true
+          r.field :permalink, :string, readonly: true
+          r.field :created_at, readonly: true
+        end
         registry.register_builtin('spree_orders') do |r|
           r.model 'Spree::Order'
           r.label 'Orders'
@@ -163,12 +182,38 @@ module SpreeAdminNative
       end
     end
 
-    Field = Struct.new(:name, :type, :label, :required, :readonly, :options, :resource, :hint, :default, keyword_init: true) do
+    Field = Struct.new(:name, :type, :label, :required, :readonly, :options, :resource, :hint, :default, :link, keyword_init: true) do
       def as_json(*)
-        {
+        json = {
           name: name.to_s, type: type.to_s, label: label, required: !!required, readonly: !!readonly,
           options: options, resource: resource, hint: hint, default: Resources.json_value(default)
-        }.compact
+        }
+        if type.to_s == 'link'
+          kinds = link_kinds
+          json[:options] = kinds.map { |k| k[:kind] }
+          json[:kinds] = kinds
+        end
+        json.compact
+      end
+
+      # The kinds this link offers here: `url` when a URL column is mapped, then each `kinds:`
+      # entry whose type is available. [{ kind:, resource: }]
+      def link_kinds
+        config = link || {}
+        list = []
+        list << { kind: LINK_URL_KIND } if config[:url]
+        (config[:kinds] || {}).each do |kind, resource|
+          next if kind == LINK_URL_KIND || SpreeAdminNative.resources[resource].nil?
+
+          list << { kind: kind, resource: resource }
+        end
+        list
+      end
+
+      # The type a link kind points at, or nil (url, unknown or unavailable kinds).
+      def link_target(kind)
+        resource = (link || {}).fetch(:kinds, {})[kind.to_s]
+        resource && SpreeAdminNative.resources[resource]
       end
     end
 
@@ -210,6 +255,7 @@ module SpreeAdminNative
         @hooks = { before_save: [], after_save: [] }
         @hidden = false
         @builtin = false
+        @view = nil
       end
 
       # --- DSL -------------------------------------------------------------------------------
@@ -294,11 +340,35 @@ module SpreeAdminNative
         @auto = { except: except.map(&:to_sym), readonly: readonly.map(&:to_sym) } if mode == :auto
       end
 
-      def field(name, type = nil, label: nil, required: nil, readonly: nil, options: nil, resource: nil, hint: nil, default: nil)
+      # A `:link` field (0.7) stores a typed link in host columns:
+      #   r.field :link, :link, url: :url, kind: :item_class, id: :item_id,
+      #                         kinds: { 'product' => 'spree_products', 'taxon' => 'spree_taxons' }
+      # Its value is { kind: 'url', url: } or { kind:, id:, title: }; `kinds` maps each kind to
+      # the registered type its id points at.
+      def field(name, type = nil, label: nil, required: nil, readonly: nil, options: nil, resource: nil, hint: nil, default: nil,
+                url: nil, kind: nil, id: nil, kinds: nil)
         reset!
         @fields.reject! { |f| f[:name] == name.to_sym }
-        @fields << { name: name.to_sym, type: type&.to_sym, label: label, required: required, readonly: readonly,
-                     options: options, resource: resource&.to_s, hint: hint, default: default }
+        spec = { name: name.to_sym, type: type&.to_sym, label: label, required: required, readonly: readonly,
+                 options: options, resource: resource&.to_s, hint: hint, default: default }
+        if type&.to_sym == :link
+          raise ArgumentError, "link field #{name} needs kind: (the column holding the kind)" unless kind
+          raise ArgumentError, "link field #{name} needs id: when it has kinds:" if kinds.present? && id.nil?
+
+          spec[:link] = { url: url&.to_sym, kind: kind.to_sym, id: id&.to_sym,
+                          kinds: (kinds || {}).map { |k, v| [k.to_s, v.to_s] }.to_h }
+        end
+        @fields << spec
+      end
+
+      # r.view :tree, parent: :parent_id, position: :position, group: :menu_location_id
+      # The app shows a nested, reorderable tree instead of the flat list. `group` (optional) is a
+      # :reference field whose values split the records into separate trees.
+      def view(type, parent: :parent_id, position: :position, group: nil)
+        type = type.to_sym
+        raise ArgumentError, "view #{type}: unknown view (#{VIEW_TYPES.join(', ')})" unless VIEW_TYPES.include?(type)
+
+        @view = { type: type, parent: parent.to_sym, position: position.to_sym, group: group&.to_sym }
       end
 
       # create / update / destroy switches: `r.actions create: false, destroy: false`.
@@ -425,6 +495,11 @@ module SpreeAdminNative
             base.default = nil if base.readonly && spec[:default].nil?
             by_name[spec[:name]] = base
           end
+          # A link field's columns aren't separate fields unless declared on their own.
+          declared = @fields.map { |spec| spec[:name] }
+          by_name.values.select { |f| f.type.to_sym == :link }.each do |link_field|
+            link_field.link.values_at(:url, :kind, :id).compact.each { |col| by_name.delete(col) unless declared.include?(col) }
+          end
           by_name.values.reject { |f| f.name.to_s.match?(SECRET) }
         end
       end
@@ -512,6 +587,40 @@ module SpreeAdminNative
         true
       end
 
+      # The tree view when it is declared and usable here, else nil (a missing column, or a group
+      # that isn't a reference field naming its resource, is logged once).
+      def tree_view
+        return nil unless @view && @view[:type] == :tree
+
+        problem = tree_view_problem
+        return @view unless problem
+
+        unless @view_warned
+          Rails.logger.error("[spree_admin_native] #{key} tree view: #{problem}")
+          @view_warned = true
+        end
+        nil
+      end
+
+      def tree_view_problem
+        columns = model_class.column_names
+        return "no #{@view[:parent]} column" unless columns.include?(@view[:parent].to_s)
+        return "no #{@view[:position]} column" unless columns.include?(@view[:position].to_s)
+        return nil unless @view[:group]
+
+        field = resolved_field(@view[:group])
+        unless field && field.type.to_sym == :reference && field.resource.present? && columns.include?(@view[:group].to_s)
+          return "group #{@view[:group]} must be a :reference field naming its resource"
+        end
+
+        nil
+      end
+
+      def view_manifest
+        view = tree_view
+        view && { type: view[:type].to_s, parent: view[:parent].to_s, position: view[:position].to_s, group: view[:group]&.to_s }.compact
+      end
+
       def manifest
         {
           key: key, label: label, singular: singular, hidden: hidden?, group: group, icon: @icon,
@@ -520,7 +629,8 @@ module SpreeAdminNative
           filters: filters,
           fields: resolved_fields.map(&:as_json),
           create: crud?(:create), update: crud?(:update), destroy: crud?(:destroy),
-          actions: member_actions.map(&:as_json)
+          actions: member_actions.map(&:as_json),
+          view: view_manifest
         }.compact
       end
 

@@ -12,6 +12,9 @@ SpreeAdminNative::Engine.routes.draw do
     post 'resources/uploads', to: 'resources#upload'
     get 'resources/:key', to: 'resources#list'
     post 'resources/:key', to: 'resources#create'
+    # Tree views (0.7), before the record routes they would otherwise match.
+    get 'resources/:key/tree', to: 'resources#tree'
+    patch 'resources/:key/tree', to: 'resources#update_tree'
     get 'resources/:key/:id', to: 'resources#show'
     patch 'resources/:key/:id', to: 'resources#update'
     delete 'resources/:key/:id', to: 'resources#destroy'
@@ -23,6 +26,24 @@ SpreeAdminNative::Engine.routes.draw do
     resources :promotions, only: %i[index show create update]
     get 'payment_methods', to: 'draft_orders#payment_methods'
     delete 'orders/:order_number', to: 'draft_orders#destroy'
+
+    # Inbox (0.7), through the host's inbox adapter.
+    scope 'inbox', as: 'inbox' do
+      get 'summary', to: 'inbox#summary'
+      get 'conversations', to: 'inbox#index'
+      get 'conversations/:id', to: 'inbox#show'
+      patch 'conversations/:id', to: 'inbox#update'
+      get 'conversations/:id/messages', to: 'inbox#messages'
+      post 'conversations/:id/messages', to: 'inbox#reply'
+      post 'conversations/:id/read', to: 'inbox#mark_read'
+    end
+
+    # Carts (0.7, built in) and visitors (0.7, through the host's visitors adapter).
+    get 'carts', to: 'carts#index'
+    get 'carts/:number', to: 'carts#show'
+    get 'visitors', to: 'visitors#index'
+    get 'visitors/:id', to: 'visitors#show'
+    post 'visitors/:id/conversation', to: 'visitors#start_conversation'
   end
 end
 

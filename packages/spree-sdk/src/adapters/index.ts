@@ -1,7 +1,9 @@
 import type { ApiFamily } from '../capabilities/types';
 import { type CompanionPort, companion } from '../companion';
+import { companionInbox } from '../companion/inbox';
 import { companionPromotions } from '../companion/promotions';
 import { companionResources } from '../companion/resources';
+import { companionCarts, companionVisitors } from '../companion/visitors';
 import type { SpreeAdapter } from '../ports';
 import type { Transport } from '../transport';
 import { adminV3Customers } from './admin-v3/customers';
@@ -15,11 +17,14 @@ import { apiV1Orders } from './api-v1/orders';
 import { apiV1Products } from './api-v1/products';
 import { platformV2Orders } from './platform-v2/orders';
 import {
+  unsupportedCarts,
   unsupportedCustomers,
+  unsupportedInbox,
   unsupportedMedia,
   unsupportedProducts,
   unsupportedPromotions,
   unsupportedResources,
+  unsupportedVisitors,
 } from './unsupported';
 
 export type {
@@ -29,6 +34,8 @@ export type {
   GemAdminFilter,
   GemAdminRecord,
   GemAdminResource,
+  GemAdminTree,
+  GemAdminTreeNode,
 } from '../companion/resources';
 export {
   CONFLICT_MESSAGE,
@@ -36,6 +43,8 @@ export {
   mapGemBlob,
   mapGemRecord,
   mapGemResource,
+  mapGemTree,
+  mapGemTreeNode,
 } from '../companion/resources';
 export { mapOrder as mapAdminV3Order } from './admin-v3/mapOrder';
 export {
@@ -48,12 +57,15 @@ export { mapV1Product as mapApiV1Product, mapV1User as mapApiV1Customer } from '
 export { v1Gallery } from './api-v1/media';
 export { mapOrderDocument as mapPlatformV2Orders } from './platform-v2/mapOrder';
 export {
+  unsupportedCarts,
   unsupportedCustomers,
+  unsupportedInbox,
   unsupportedMedia,
   unsupportedOrderCreation,
   unsupportedProducts,
   unsupportedPromotions,
   unsupportedResources,
+  unsupportedVisitors,
 } from './unsupported';
 
 /** The adapter for a store's preferred API family. `transport` must already carry auth. */
@@ -76,14 +88,20 @@ const pending = {
 };
 
 function baseAdapter(family: ApiFamily, transport: Transport, gem?: CompanionPort): SpreeAdapter {
-  // Host-described admin types come only from the gem, whatever the family.
-  const resources = gem ? companionResources(transport) : unsupportedResources;
+  // Host-described admin types, the inbox, carts and visitors come only from the gem, whatever the
+  // family; screens gate on the capabilities the gem announces (`inbox`, `carts`, `visitors`).
+  const companionOnly = {
+    resources: gem ? companionResources(transport) : unsupportedResources,
+    inbox: gem ? companionInbox(transport) : unsupportedInbox,
+    carts: gem ? companionCarts(transport) : unsupportedCarts,
+    visitors: gem ? companionVisitors(transport) : unsupportedVisitors,
+  };
   switch (family) {
     case 'api-v1':
       return {
         family,
         ...pending,
-        resources,
+        ...companionOnly,
         orders: apiV1Orders(transport, gem),
         promotions: gem ? companionPromotions(transport) : unsupportedPromotions,
         products: apiV1Products(transport, gem),
@@ -91,12 +109,12 @@ function baseAdapter(family: ApiFamily, transport: Transport, gem?: CompanionPor
         media: apiV1Media(transport, { companion: !!gem }),
       };
     case 'platform-v2':
-      return { family, orders: platformV2Orders(transport), ...pending, resources };
+      return { family, orders: platformV2Orders(transport), ...pending, ...companionOnly };
     case 'admin-v3':
       return {
         family,
         ...pending,
-        resources,
+        ...companionOnly,
         orders: adminV3Orders(transport),
         promotions: adminV3Promotions(transport),
         products: adminV3Products(transport),

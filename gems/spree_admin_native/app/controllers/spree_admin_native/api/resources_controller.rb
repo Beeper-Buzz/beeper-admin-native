@@ -86,6 +86,31 @@ module SpreeAdminNative
         render_error('action_failed', e.message.presence || "#{action&.label} failed.")
       end
 
+      # GET resources/:key/tree?group=<id>: the group's records (or the whole table) nested.
+      def tree
+        builder = tree_builder(params[:group])
+        return unless builder
+
+        meta = { group: builder.group_meta }
+        render json: { data: present_tree(builder, builder.records), meta: meta }
+      rescue Tree::Refused => e
+        render_error(e.code, e.message, e.status)
+      end
+
+      # PATCH resources/:key/tree { group, nodes: [{ id, parent_id, position }] }: every move in
+      # one transaction, positions renumbered 0..n per parent; returns the new tree.
+      def update_tree
+        builder = tree_builder(params[:group])
+        return unless builder
+
+        meta = { group: builder.group_meta }
+        nodes = params.key?(:nodes) ? params[:nodes] : []
+        nodes = [] if nodes.nil?
+        render json: { data: present_tree(builder, builder.move!(nodes)), meta: meta }
+      rescue Tree::Refused => e
+        render_error(e.code, e.message, e.status)
+      end
+
       # POST resources/uploads (multipart `file`): an ActiveStorage blob whose signed_id an image
       # or file field accepts.
       def upload
@@ -117,6 +142,21 @@ module SpreeAdminNative
 
       def load_record
         @record = @definition.relation.find(params[:id])
+      end
+
+      def tree_builder(group)
+        unless @definition.tree_view
+          render_error('not_found', "#{@definition.label} has no tree view.", :not_found)
+          return nil
+        end
+
+        Tree.new(@definition, group: group)
+      end
+
+      def present_tree(builder, rows)
+        references = reference_titles(rows)
+        build = ->((record, children)) { present(record, references).merge(children: children.map(&build)) }
+        builder.nest(rows).map(&build)
       end
 
       def version_param
@@ -296,6 +336,10 @@ module SpreeAdminNative
             assign_attachment(record, f, value)
             next
           end
+          if f.type == :link
+            assign_link(record, f, value)
+            next
+          end
           value = nil if value == '' && f.type != :string && f.type != :text
           if f.type == :json && value.is_a?(String) && value.present?
             begin
@@ -323,6 +367,41 @@ module SpreeAdminNative
         end
       end
 
+      # { kind: 'url', url } or { kind, id } into the link's columns; null clears them.
+      def assign_link(record, field, value)
+        config = field.link
+        value = value.to_unsafe_h if value.respond_to?(:to_unsafe_h)
+        if value.nil? || value == ''
+          config.values_at(:url, :kind, :id).compact.each { |col| record.public_send("#{col}=", nil) }
+          return
+        end
+        return record.errors.add(field.name, 'is not a valid link') unless value.respond_to?(:key?)
+
+        value = value.with_indifferent_access
+        kind = value[:kind].to_s
+        if kind == Resources::LINK_URL_KIND && config[:url]
+          url = value[:url].to_s.strip
+          return record.errors.add(field.name, 'needs a URL') if url.empty?
+
+          record.public_send("#{config[:url]}=", url)
+          record.public_send("#{config[:kind]}=", kind)
+          record.public_send("#{config[:id]}=", nil) if config[:id]
+        elsif (target = field.link_target(kind))
+          id = value[:id]
+          id = id[:id] || id['id'] if id.respond_to?(:key?)
+          return record.errors.add(field.name, "needs a #{kind}") if Resources.blank?(id)
+          unless target.relation.where(target.model_class.primary_key => id.to_s).exists?
+            return record.errors.add(field.name, "links to a #{kind} that doesn't exist")
+          end
+
+          record.public_send("#{config[:kind]}=", kind)
+          record.public_send("#{config[:id]}=", id.to_s)
+          record.public_send("#{config[:url]}=", nil) if config[:url]
+        else
+          record.errors.add(field.name, "kind must be one of #{field.link_kinds.map { |k| k[:kind] }.join(', ')}")
+        end
+      end
+
       def find_blob(signed_id)
         return nil unless signed_id.is_a?(String) && defined?(ActiveStorage::Blob)
 
@@ -342,7 +421,8 @@ module SpreeAdminNative
       # { field name => { id => title } } for the reference fields of these rows: one query per
       # reference field, not per row.
       def reference_titles(rows)
-        @definition.resolved_fields.select { |f| f.type == :reference }.each_with_object({}) do |field, out|
+        titles = link_titles(rows)
+        @definition.resolved_fields.select { |f| f.type == :reference }.each_with_object(titles) do |field, out|
           titles = {}
           target = field.resource && SpreeAdminNative.resources[field.resource]
           if target
@@ -354,6 +434,40 @@ module SpreeAdminNative
             end
           end
           out[field.name] = titles
+        end
+      end
+
+      # { link field name => { kind => { id => title } } }: one query per kind per page.
+      def link_titles(rows)
+        @definition.resolved_fields.select { |f| f.type == :link }.each_with_object({}) do |field, out|
+          config = field.link
+          by_kind = Hash.new { |h, k| h[k] = [] }
+          rows.each do |row|
+            kind = config[:kind] && row.respond_to?(config[:kind]) ? row.public_send(config[:kind]).to_s : nil
+            id = config[:id] && row.respond_to?(config[:id]) ? row.public_send(config[:id]) : nil
+            by_kind[kind] << id.to_s if kind && !Resources.blank?(id)
+          end
+          out[field.name] = by_kind.each_with_object({}) do |(kind, ids), titles|
+            target = field.link_target(kind)
+            next unless target
+
+            model = target.model_class
+            titles[kind] = model.where(model.primary_key => ids.uniq).each_with_object({}) { |r, h| h[r.id.to_s] = target.title_for(r) }
+          end
+        end
+      end
+
+      def link_value(record, field, references)
+        config = field.link
+        read = ->(col) { col && record.respond_to?(col) ? record.public_send(col) : nil }
+        kind = read.call(config[:kind]).to_s
+        url = read.call(config[:url])
+        id = read.call(config[:id])
+        if kind != Resources::LINK_URL_KIND && config[:kinds].key?(kind) && !Resources.blank?(id)
+          title = references.dig(field.name, kind, id.to_s)
+          { kind: kind, id: id.to_s, title: title || "##{id}" }
+        elsif config[:url] && !Resources.blank?(url)
+          { kind: Resources::LINK_URL_KIND, url: url.to_s }
         end
       end
 
@@ -377,6 +491,7 @@ module SpreeAdminNative
       def value_of(record, field, references)
         return image_url(record, field.name) if field.type == :image
         return file_value(record, field.name) if field.type == :file
+        return link_value(record, field, references) if field.type == :link
 
         value = record.respond_to?(field.name) ? record.public_send(field.name) : nil
         case value

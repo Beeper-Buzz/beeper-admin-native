@@ -4,6 +4,9 @@ require 'spree_admin_native/configuration'
 require 'spree_admin_native/tokens'
 require 'spree_admin_native/engine'
 require 'spree_admin_native/resources'
+require 'spree_admin_native/adapters'
+require 'spree_admin_native/inbox'
+require 'spree_admin_native/visitors'
 
 module SpreeAdminNative
   class << self

@@ -3,11 +3,14 @@ import {
   type SpreeAdapter,
   SpreeError,
   type StoreProbe,
+  unsupportedCarts,
   unsupportedCustomers,
+  unsupportedInbox,
   unsupportedMedia,
   unsupportedProducts,
   unsupportedPromotions,
   unsupportedResources,
+  unsupportedVisitors,
 } from '@instincts/spree-sdk';
 import { createTRPCClient, localLink } from '@trpc/client';
 import { TRPCError } from '@trpc/server';
@@ -58,6 +61,9 @@ function adapter(
     promotions: { ...unsupportedPromotions, ...promotions },
     media: unsupportedMedia,
     resources: unsupportedResources,
+    inbox: unsupportedInbox,
+    carts: unsupportedCarts,
+    visitors: unsupportedVisitors,
   };
 }
 
@@ -791,6 +797,8 @@ describe('resources (host-described admin types)', () => {
       remove: vi.fn(async () => undefined),
       perform: vi.fn(async () => ({ record: reason, message: 'Retired.', removed: false })),
       upload: vi.fn(async () => blob),
+      tree: vi.fn(async () => ({ nodes: [], group: null })),
+      moveTree: vi.fn(async () => ({ nodes: [], group: null })),
     };
     return { a: { ...adapter(), resources } as SpreeAdapter, resources };
   }

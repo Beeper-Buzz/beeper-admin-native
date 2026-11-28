@@ -115,4 +115,35 @@ export const resourcesRouter = router({
   upload: can
     .input(z.object({ file: PickedFile }))
     .mutation(({ ctx, input }) => ctx.session.adapter.resources.upload(input.file)),
+
+  /** Gem 0.7: the whole tree of one group of a tree-view type (null for the whole table). */
+  tree: can
+    .input(Type.extend({ group: RecordId.nullable().default(null) }))
+    .query(({ ctx, input }) => ctx.session.adapter.resources.tree(input.key, input.group)),
+
+  /**
+   * Gem 0.7: every node's new parent and position, applied in one transaction; returns the new
+   * tree. A cycle or a node outside the group is refused by the store, and nothing moves.
+   */
+  moveTree: can
+    .input(
+      Type.extend({
+        group: RecordId.nullable().default(null),
+        nodes: z
+          .array(
+            z.object({
+              id: RecordId,
+              parentId: RecordId.nullable(),
+              position: z.number().int().min(0).max(100_000),
+            }),
+          )
+          .min(1)
+          .max(2000)
+          .refine((nodes) => new Set(nodes.map((n) => n.id)).size === nodes.length, 'A node moves once.')
+          .refine((nodes) => nodes.every((n) => n.id !== n.parentId), 'A node can’t be its own parent.'),
+      }),
+    )
+    .mutation(({ ctx, input }) =>
+      ctx.session.adapter.resources.moveTree(input.key, input.group, input.nodes),
+    ),
 });

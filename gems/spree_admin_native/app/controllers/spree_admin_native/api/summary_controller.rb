@@ -4,7 +4,7 @@ module SpreeAdminNative
       before_action :require_admin!
 
       def show
-        render json: Summary.new.as_json
+        render json: Summary.new(admin: current_admin).as_json
       end
 
       # Products with low-stock variants, lowest first (the same set the summary counts).

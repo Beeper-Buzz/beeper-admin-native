@@ -16,6 +16,9 @@ const MESSAGES: Record<string, string> = {
   'notifications.push': 'Push notifications need the companion gem, or Spree webhooks with the relay.',
   'admin.resources': "This store doesn't describe any admin types (companion gem 0.4 with registered types).",
   'app.versionGate': "This store doesn't set app versions (companion gem 0.6).",
+  inbox: "This store doesn't have a customer inbox (companion gem 0.7 with an inbox adapter).",
+  carts: "This store can't list carts (companion gem 0.7).",
+  visitors: "This store doesn't track storefront visitors (companion gem 0.7 with a visitors adapter).",
   'webhooks.manage': "This store's Spree version doesn't support webhooks.",
 };
 

@@ -1,8 +1,10 @@
 import { useMutation } from '@tanstack/react-query';
 import { NativeTabs } from 'expo-router/native-tabs';
 import { useEffect } from 'react';
+import { unreadBadge } from '@/inbox/inbox-state';
+import { useInboxSummary } from '@/inbox/use-inbox';
 import { getPushToken, useNotificationNavigation } from '@/push/push';
-import { useSession } from '@/session/session';
+import { useCan, useSession } from '@/session/session';
 import { useTheme } from '@/theme/theme';
 import { useTRPC } from '@/trpc/trpc';
 
@@ -26,6 +28,9 @@ export default function TabsLayout() {
   const { colors, fonts } = useTheme();
   usePushRegistration();
   useNotificationNavigation();
+  // With a customer inbox, Inbox takes the Customers tab's place and Customers moves to More.
+  const inbox = useCan()('inbox');
+  const unread = unreadBadge(useInboxSummary().data?.unread);
   return (
     <NativeTabs
       backgroundColor={colors.surface}
@@ -47,7 +52,17 @@ export default function TabsLayout() {
         <NativeTabs.Trigger.Label>Products</NativeTabs.Trigger.Label>
         <NativeTabs.Trigger.Icon sf={{ default: 'tag', selected: 'tag.fill' }} md="sell" />
       </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="customers">
+      <NativeTabs.Trigger name="inbox" hidden={!inbox}>
+        <NativeTabs.Trigger.Label>Inbox</NativeTabs.Trigger.Label>
+        <NativeTabs.Trigger.Icon
+          sf={{ default: 'bubble.left.and.bubble.right', selected: 'bubble.left.and.bubble.right.fill' }}
+          md="forum"
+        />
+        <NativeTabs.Trigger.Badge hidden={!unread} selectedBackgroundColor={colors.info}>
+          {unread ?? undefined}
+        </NativeTabs.Trigger.Badge>
+      </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="customers" hidden={inbox}>
         <NativeTabs.Trigger.Label>Customers</NativeTabs.Trigger.Label>
         <NativeTabs.Trigger.Icon sf={{ default: 'person.2', selected: 'person.2.fill' }} md="group" />
       </NativeTabs.Trigger>

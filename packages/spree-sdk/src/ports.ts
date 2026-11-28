@@ -4,10 +4,17 @@ import type {
   AdminBlob,
   AdminManifest,
   AdminRecord,
+  AdminTree,
+  AdminTreeMove,
+  Cart,
+  Conversation,
+  ConversationDetail,
   Customer,
   Fulfillment,
+  InboxSummary,
   LibraryImage,
   ManualPaymentMethod,
+  Message,
   Order,
   OrderListFilter,
   Page,
@@ -16,6 +23,8 @@ import type {
   ProductImage,
   Promotion,
   PromotionListFilter,
+  VisitorSession,
+  VisitorSessionDetail,
 } from '@instincts/spree-domain';
 import type { ApiFamily } from './capabilities/types';
 import type { CompanionPort } from './companion';
@@ -312,6 +321,110 @@ export interface ResourcesPort {
    * returned blob's `signedId` to attach it.
    */
   upload(file: MediaFile): Promise<AdminBlob>;
+  /**
+   * Gem 0.7, a type whose `view` is a tree: the whole tree of one group (a record id of the view's
+   * group type), or of the whole table with null. The store refuses more than 2000 records with an
+   * `invalid` SpreeError.
+   */
+  tree(key: string, group: string | null): Promise<AdminTree>;
+  /**
+   * Applies every move in one transaction and returns the new tree. The store refuses a cycle or a
+   * node outside the group (`invalid`), and a type or node it won't let this admin edit
+   * (`forbidden`); then nothing moved.
+   */
+  moveTree(key: string, group: string | null, nodes: AdminTreeMove[]): Promise<AdminTree>;
+}
+
+// --- Inbox ---------------------------------------------------------------------------------
+
+export type ConversationStatusFilter = 'open' | 'snoozed' | 'closed' | 'all';
+export type ConversationAssigneeFilter = 'me' | 'unassigned' | 'any';
+
+export interface ListConversationsParams {
+  status?: ConversationStatusFilter;
+  assignee?: ConversationAssigneeFilter;
+  /** Name, email or message text. */
+  query?: string;
+  /** ISO timestamp: only conversations changed since then (polling). */
+  updatedSince?: string | null;
+  cursor?: string | null;
+  perPage?: number;
+}
+
+export interface ListMessagesParams {
+  /** Messages older than this message id (scrolling back). */
+  before?: string | null;
+  /** Messages newer than this message id (polling). */
+  after?: string | null;
+  /** 50 by default, 200 at most. */
+  limit?: number;
+}
+
+export interface ReplyInput {
+  /** At most 4000 characters; may be empty when there are attachments. */
+  body: string;
+  /** An internal note, never sent to the customer. */
+  note?: boolean;
+  /** Signed ids of uploads (`ResourcesPort.upload`). */
+  attachments?: string[];
+}
+
+export interface ConversationUpdate {
+  status?: 'open' | 'snoozed' | 'closed';
+  /** `'me'` assigns the signed-in admin; null unassigns. */
+  assigneeId?: string | null;
+  /** ISO timestamp, with `status: 'snoozed'`; null clears it. */
+  snoozedUntil?: string | null;
+}
+
+/** `inbox`: conversations with customers, through the host's inbox adapter (gem 0.7). */
+export interface InboxPort {
+  /** Newest activity first. */
+  list(params: ListConversationsParams): Promise<Page<Conversation>>;
+  get(id: string): Promise<ConversationDetail>;
+  /** Oldest first. Without `before` or `after`, the latest `limit` messages. */
+  messages(id: string, params?: ListMessagesParams): Promise<Message[]>;
+  /** Goes out on the conversation's channel, or stays internal as a note. */
+  reply(id: string, input: ReplyInput): Promise<Message>;
+  update(id: string, patch: ConversationUpdate): Promise<Conversation>;
+  /** Marks every inbound message read for staff. */
+  markRead(id: string): Promise<void>;
+  summary(): Promise<InboxSummary>;
+}
+
+// --- Carts and visitors --------------------------------------------------------------------
+
+export interface ListCartsParams {
+  /** Only carts updated within this many minutes. */
+  activeWithin?: number | null;
+  /** Only carts with (true) or without (false) an email. */
+  withEmail?: boolean | null;
+  /** Only abandoned carts (an email, untouched for an hour or more), or only the others. */
+  abandoned?: boolean | null;
+  cursor?: string | null;
+  perPage?: number;
+}
+
+/** `carts`: incomplete orders with items, newest change first (gem 0.7, every Spree store). */
+export interface CartsPort {
+  list(params: ListCartsParams): Promise<Page<Cart>>;
+  get(number: string): Promise<Cart>;
+}
+
+export interface ListVisitorsParams {
+  /** Only sessions seen in the last 2 minutes. */
+  online?: boolean;
+  cursor?: string | null;
+  perPage?: number;
+}
+
+/** `visitors`: storefront sessions through the host's visitors adapter (gem 0.7). */
+export interface VisitorsPort {
+  list(params: ListVisitorsParams): Promise<Page<VisitorSession>>;
+  /** With its last 50 page views. */
+  get(id: string): Promise<VisitorSessionDetail>;
+  /** Starts (or returns) the conversation with this visitor. */
+  startConversation(id: string): Promise<{ conversationId: string }>;
 }
 
 /** One Spree API family behind domain-typed ports. Screens and the router only see this. */
@@ -323,6 +436,12 @@ export interface SpreeAdapter {
   readonly promotions: PromotionsPort;
   readonly media: MediaPort;
   readonly resources: ResourcesPort;
+  /** Gem 0.7 (`inbox`); refuses with a `capability` SpreeError elsewhere. */
+  readonly inbox: InboxPort;
+  /** Gem 0.7 (`carts`). */
+  readonly carts: CartsPort;
+  /** Gem 0.7 (`visitors`). */
+  readonly visitors: VisitorsPort;
   /** Present when the store runs the spree_admin_native gem. */
   readonly companion?: CompanionPort;
 }

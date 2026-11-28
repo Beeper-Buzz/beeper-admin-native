@@ -5,14 +5,16 @@ import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MoneyText, Screen } from '@/components/primitives';
 import { Label, Text } from '@/components/text';
-import { useSession } from '@/session/session';
+import { useCan, useSession } from '@/session/session';
 import { useTheme } from '@/theme/theme';
 import { useTRPC } from '@/trpc/trpc';
+import { VisitorsCard } from '@/visitors/home-card';
 
 export default function HomeScreen() {
   const trpc = useTRPC();
   const { colors } = useTheme();
   const { state } = useSession();
+  const can = useCan();
   const hasSummary = state.store?.probe.capabilities.includes('analytics.summary') ?? false;
   const summary = useQuery({ ...trpc.dashboard.summary.queryOptions(), enabled: hasSummary });
   const [unfulfilled, unpaid] = useQueries({
@@ -66,6 +68,7 @@ export default function HomeScreen() {
               </Text>
             </View>
           ) : null}
+          <VisitorsCard hasVisitors={can('visitors')} hasCarts={can('carts')} />
           <View style={{ gap: space[2] }}>
             <Label>To do</Label>
             <View style={[styles.list, { borderColor: colors.line, backgroundColor: colors.line }]}>

@@ -29,6 +29,9 @@ const GROUPS: { title: string; items: [capability: string, label: string][] }[] 
     title: 'More',
     items: [
       ['customers.read', 'Customers'],
+      ['inbox', 'Customer inbox'],
+      ['visitors', 'Live visitors'],
+      ['carts', 'Carts'],
       ['promotions.read', 'Promotions'],
       ['analytics.summary', 'Sales summary'],
       ['notifications.push', 'Push notifications'],

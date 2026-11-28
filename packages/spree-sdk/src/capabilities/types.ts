@@ -52,6 +52,12 @@ export const CORE_CAPABILITIES = [
   'admin.resources',
   /** The store sets minimum and recommended app versions (companion gem 0.6+, `GET app_version`). */
   'app.versionGate',
+  /** Customer chat through a host inbox adapter (companion gem 0.7, `inbox/*`). */
+  'inbox',
+  /** Incomplete orders with items, built into the companion gem 0.7 (`carts`). */
+  'carts',
+  /** Live storefront sessions through a host visitors adapter (companion gem 0.7, `visitors`). */
+  'visitors',
 ] as const;
 export type CoreCapability = (typeof CORE_CAPABILITIES)[number];
 /** A core capability or an extension's namespaced capability (`vendor.feature`). */

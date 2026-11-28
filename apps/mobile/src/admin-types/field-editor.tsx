@@ -1,4 +1,10 @@
-import { type AdminField, type AdminReference, type AdminResource, adminFile } from '@instincts/spree-domain';
+import {
+  type AdminField,
+  type AdminReference,
+  type AdminResource,
+  adminFile,
+  linkKinds,
+} from '@instincts/spree-domain';
 import { radius, space } from '@instincts/spree-ui';
 import { Image } from 'expo-image';
 import { useEffect, useRef } from 'react';
@@ -14,7 +20,9 @@ import {
   editorKind,
   isAttachment,
   isHexColor,
+  isLinkDraft,
   isoFromLocal,
+  linkKindLabel,
   localDateTime,
   localDay,
 } from './values';
@@ -48,6 +56,8 @@ export function FieldEditor(props: FieldEditorProps) {
       return <EnumField {...props} />;
     case 'reference':
       return <ReferenceField {...props} />;
+    case 'link':
+      return <LinkField {...props} />;
     case 'date':
     case 'datetime':
       return <DateField {...props} />;
@@ -473,6 +483,113 @@ function DateField({ field, draft, onChange, error }: FieldEditorProps) {
           {!error && preview && preview !== '—' ? preview : withTime ? 'Your local time' : ''}
         </Text>
       </View>
+      <Hint text={field.hint} />
+    </View>
+  );
+}
+
+/**
+ * A link (gem 0.7): a kind picker, then a URL field for `url` or the reference picker of the kind's
+ * type (product, taxon, page…). Switching kind starts that kind empty.
+ */
+function LinkField({ field, draft, onChange, error, types }: FieldEditorProps) {
+  const { colors } = useTheme();
+  const kinds = linkKinds(field);
+  const link = isLinkDraft(draft) ? draft : null;
+  const current = kinds.find((k) => k.kind === link?.kind) ?? null;
+  const request = useRef<string | null>(null);
+  useEffect(
+    () => () => {
+      if (request.current) forgetPick(request.current);
+    },
+    [],
+  );
+  const choose = (kind: string) =>
+    onChange(kind === link?.kind ? link : { kind, url: kind === 'url' ? '' : null, id: null, title: null });
+  const pick = () => {
+    if (!current?.resource) return;
+    const kind = current.kind;
+    request.current = openReferencePicker(
+      {
+        resource: current.resource,
+        label: linkKindLabel(current, types),
+        selected: link?.id ?? null,
+        optional: false,
+      },
+      (choice) => {
+        request.current = null;
+        if (choice) onChange({ kind, url: null, id: choice.id, title: choice.title });
+      },
+    );
+  };
+  const kindLabel = current ? linkKindLabel(current, types) : '';
+
+  return (
+    <View style={{ gap: space[2] }}>
+      <FieldLabel field={field} />
+      <View
+        accessibilityRole="radiogroup"
+        accessibilityLabel={`${a11yLabel(field)}: link to`}
+        style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space[2] }}
+      >
+        {field.required ? null : <Chip label="None" on={!link} onPress={() => onChange(null)} />}
+        {kinds.map((k) => (
+          <Chip
+            key={k.kind}
+            label={linkKindLabel(k, types)}
+            on={link?.kind === k.kind}
+            onPress={() => choose(k.kind)}
+          />
+        ))}
+      </View>
+      {link?.kind === 'url' ? (
+        <TextField
+          label="URL"
+          value={link.url ?? ''}
+          onChangeText={(url) => onChange({ ...link, url })}
+          error={error}
+          placeholder="https:// or /path"
+          keyboardType="url"
+          autoCapitalize="none"
+          autoCorrect={false}
+        />
+      ) : link && current?.resource && !types.some((t) => t.key === current.resource) ? (
+        // The host didn't register the kind's type, so there is nothing to list: take its id.
+        <TextField
+          label={`${kindLabel} (id)`}
+          value={link.id ?? ''}
+          onChangeText={(id) =>
+            onChange({ ...link, id: id.trim() || null, title: id.trim() ? `#${id.trim()}` : null })
+          }
+          autoCapitalize="none"
+          autoCorrect={false}
+        />
+      ) : link && current?.resource ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`${kindLabel}: ${link.title ?? (link.id ? `#${link.id}` : 'none chosen')}`}
+          accessibilityHint={`Choose a ${kindLabel.toLowerCase()}`}
+          onPress={pick}
+          style={({ pressed }) => ({
+            minHeight: 44,
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: space[2],
+            paddingHorizontal: space[3],
+            borderRadius: radius.card,
+            borderWidth: 1,
+            borderColor: error ? colors.critical : colors.line,
+            backgroundColor: colors.surface,
+            opacity: pressed ? 0.7 : 1,
+          })}
+        >
+          <Text style={{ flex: 1 }} tone={link.id ? 'ink' : 'muted'} numberOfLines={1}>
+            {link.id ? (link.title ?? `#${link.id}`) : `Choose a ${kindLabel.toLowerCase()}…`}
+          </Text>
+          <Text tone="muted">›</Text>
+        </Pressable>
+      ) : null}
+      {link?.kind !== 'url' ? <ErrorText text={error} /> : null}
       <Hint text={field.hint} />
     </View>
   );

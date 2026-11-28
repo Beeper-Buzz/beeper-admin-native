@@ -5,6 +5,7 @@ require 'minitest/autorun'
 require 'rack/test'
 require 'socket'
 require 'json'
+require 'active_support/testing/time_helpers'
 
 class SpreeAdminNativeIntegrationTest < Minitest::Test
   include Rack::Test::Methods
@@ -1170,7 +1171,7 @@ class SpreeAdminNativeIntegrationTest < Minitest::Test
     header 'X-Spree-Token', pair!
     data = resource_json(:get, '')['data']
     builtins = data.select { |d| d['key'].start_with?('spree_') }.map { |d| [d['key'], d] }.to_h
-    assert_equal %w[spree_orders spree_products spree_users spree_variants], builtins.keys.sort
+    assert_equal %w[spree_orders spree_products spree_taxons spree_users spree_variants], builtins.keys.sort
     builtins.each_value do |d|
       assert_equal true, d['hidden']
       assert_equal [false, false, false], [d['create'], d['update'], d['destroy']]
@@ -1180,7 +1181,14 @@ class SpreeAdminNativeIntegrationTest < Minitest::Test
     assert_equal %w[name slug created_at], builtins['spree_products']['fields'].map { |f| f['name'] }
     assert_equal %w[sku created_at], builtins['spree_variants']['fields'].map { |f| f['name'] }
     assert_equal %w[number email created_at], builtins['spree_orders']['fields'].map { |f| f['name'] }
+    assert_equal %w[name permalink created_at], builtins['spree_taxons']['fields'].map { |f| f['name'] }
     assert_equal 'email', builtins['spree_users']['title_field']
+
+    # 0.7: taxons are titled with their pretty name (ancestors -> name) and searched by name.
+    taxon = Spree::Taxon.where.not(parent_id: nil).first || skip('no child taxons')
+    row = resource_json(:get, "/spree_taxons?q=#{CGI.escape(taxon.name)}")['data'].find { |r| r['id'] == taxon.id.to_s }
+    assert_equal [taxon.pretty_name, taxon.permalink], [row['title'], row['subtitle']]
+    assert_includes row['title'], ' -> '
 
     order = Spree::Order.complete.first
     row = resource_json(:get, "/spree_orders?q=#{order.number.downcase}")['data'].first
@@ -1587,5 +1595,917 @@ class SpreeAdminNativeIntegrationTest < Minitest::Test
   ensure
     ActionController::Base.allow_forgery_protection = forgery unless forgery.nil?
     Warden.test_reset!
+  end
+
+  # --- 0.7: tree views ----------------------------------------------------------------------
+
+  include ActiveSupport::Testing::TimeHelpers
+
+  class SanMenu < ActiveRecord::Base
+    self.table_name = 't7_menus'
+  end
+
+  class SanMenuItem < ActiveRecord::Base
+    self.table_name = 't7_menu_items'
+    default_scope { order(position: :asc) } # like dna-admin's MenuItem
+  end
+
+  # Tables made inside the test's transaction, so they roll back with it (Postgres DDL is
+  # transactional). Registers t7_menus (hidden, the group) and t7_menu_items (a tree with a link).
+  def with_menu_types(update: true, editable_if: nil)
+    connection = ActiveRecord::Base.connection
+    connection.create_table(:t7_menus) { |t| t.string :title }
+    connection.create_table(:t7_menu_items) do |t|
+      t.string :name, null: false
+      t.string :url
+      t.string :item_class
+      t.string :item_id
+      t.integer :parent_id
+      t.integer :position, null: false, default: 0
+      t.integer :menu_id
+      t.timestamps
+    end
+    refresh_tables
+    registry = SpreeAdminNative.resources
+    registry.register('t7_menus') do |r|
+      r.model SanMenu.name
+      r.hidden
+      r.title :title
+      r.fields :auto
+    end
+    registry.register('t7_menu_items') do |r|
+      r.model SanMenuItem.name
+      r.title :name
+      r.fields :auto
+      r.field :menu_id, :reference, resource: 't7_menus', label: 'Menu'
+      r.field :link, :link, url: :url, kind: :item_class, id: :item_id,
+                            kinds: { 'product' => 'spree_products', 'taxon' => 'spree_taxons', 'page' => 't7_no_pages' }
+      r.view :tree, parent: :parent_id, position: :position, group: :menu_id
+      r.actions update: false unless update
+      r.editable_if editable_if if editable_if
+    end
+    yield registry
+  ensure
+    %w[t7_menus t7_menu_items].each do |k|
+      registry&.unregister(k)
+      ActiveRecord::Base.connection.drop_table(k, if_exists: true)
+    end
+    refresh_tables
+  end
+
+  def refresh_tables
+    %w[t7_menus t7_menu_items].each { |t| ActiveRecord::Base.connection.schema_cache.clear_data_source_cache!(t) }
+    [SanMenu, SanMenuItem].each(&:reset_column_information)
+  end
+
+  # { name => [id, ...] } helpers over the tree JSON.
+  def tree_names(nodes)
+    nodes.map { |n| n['children'].any? ? { n['title'] => tree_names(n['children']) } : n['title'] }
+  end
+
+  def tree(key, group = nil)
+    get "/api/admin_native/v1/resources/#{key}/tree", group ? { group: group } : {}
+    assert_equal 200, last_response.status, last_response.body
+    json
+  end
+
+  def move(key, group, nodes)
+    patch "/api/admin_native/v1/resources/#{key}/tree", { group: group, nodes: nodes }.to_json, 'CONTENT_TYPE' => 'application/json'
+    last_response.body.empty? ? {} : json
+  end
+
+  def menu_fixture
+    main = SanMenu.create!(title: 'Main')
+    footer = SanMenu.create!(title: 'Footer')
+    item = ->(name, position, parent = nil, menu = main) { SanMenuItem.create!(name: name, position: position, parent_id: parent&.id, menu_id: menu.id) }
+    shop = item.call('Shop', 0)
+    about = item.call('About', 1)
+    contact = item.call('Contact', 2)
+    mugs = item.call('Mugs', 0, shop)
+    cups = item.call('Cups', 1, shop)
+    legal = item.call('Legal', 0, nil, footer)
+    { main: main, footer: footer, shop: shop, about: about, contact: contact, mugs: mugs, cups: cups, legal: legal }
+  end
+
+  def positions(items)
+    SanMenuItem.unscoped.where(id: items.map(&:id)).order(:position).map { |i| [i.name, i.parent_id, i.position] }
+  end
+
+  def test_tree_manifest_and_nested_get
+    with_menu_types do
+      m = menu_fixture
+      header 'X-Spree-Token', pair!
+      manifest = manifest_of('t7_menu_items')
+      assert_equal({ 'type' => 'tree', 'parent' => 'parent_id', 'position' => 'position', 'group' => 'menu_id' }, manifest['view'])
+      assert_equal true, manifest_of('t7_menus')['hidden']
+      refute manifest_of('t7_menus').key?('view')
+
+      body = tree('t7_menu_items', m[:main].id)
+      assert_equal [{ 'Shop' => %w[Mugs Cups] }, 'About', 'Contact'], tree_names(body['data'])
+      assert_equal({ 'id' => m[:main].id.to_s, 'title' => 'Main' }, body.dig('meta', 'group'))
+      node = body['data'].first
+      assert_equal m[:shop].id.to_s, node['id']
+      assert_equal({ 'id' => m[:main].id.to_s, 'title' => 'Main' }, node.dig('values', 'menu_id'))
+      assert_equal({ 'update' => true, 'destroy' => true }, node['can'])
+      assert_equal [], node['children'].first['children']
+
+      whole = tree('t7_menu_items')
+      assert_nil whole.dig('meta', 'group')
+      assert_equal [{ 'Shop' => %w[Mugs Cups] }, 'Legal', 'About', 'Contact'], tree_names(whole['data']), 'every group, by position then id'
+
+      get '/api/admin_native/v1/resources/t7_menu_items/tree', group: 999_999
+      assert_equal 404, last_response.status
+      get '/api/admin_native/v1/resources/t7_menus/tree'
+      assert_equal 404, last_response.status, 'a type without a tree view'
+      # The flat list and the record routes still work alongside the tree routes.
+      resource_json(:get, "/t7_menu_items/#{m[:mugs].id}")
+      assert_equal 200, last_response.status
+    end
+  end
+
+  def test_tree_reorder_indent_and_outdent
+    with_menu_types do
+      m = menu_fixture
+      header 'X-Spree-Token', pair!
+      before = SanMenuItem.unscoped.find(m[:about].id).updated_at
+
+      body = move('t7_menu_items', m[:main].id, [{ id: m[:contact].id, parent_id: nil, position: 0 }])
+      assert_equal 200, last_response.status, last_response.body
+      assert_equal ['Contact', { 'Shop' => %w[Mugs Cups] }, 'About'], tree_names(body['data'])
+      assert_equal [['Contact', nil, 0], ['Shop', nil, 1], ['About', nil, 2]], positions([m[:contact], m[:shop], m[:about]])
+      assert_operator SanMenuItem.unscoped.find(m[:about].id).updated_at, :>, before, 'renumbered rows are touched'
+
+      # Indent: About under Shop, between Mugs and Cups.
+      body = move('t7_menu_items', m[:main].id, [{ id: m[:about].id, parent_id: m[:shop].id, position: 1 }])
+      assert_equal ['Contact', { 'Shop' => %w[Mugs About Cups] }], tree_names(body['data'])
+
+      # Outdent: Cups to the top level, last.
+      body = move('t7_menu_items', m[:main].id, [{ id: m[:cups].id, parent_id: nil, position: 99 }])
+      assert_equal ['Contact', { 'Shop' => %w[Mugs About] }, 'Cups'], tree_names(body['data'])
+      assert_equal [['Contact', nil, 0], ['Shop', nil, 1], ['Cups', nil, 2]], positions([m[:contact], m[:shop], m[:cups]])
+      assert_equal [['Mugs', m[:shop].id, 0], ['About', m[:shop].id, 1]], positions([m[:mugs], m[:about]])
+
+      # Several moves at once, the way the app sends a whole renumbered level.
+      body = move('t7_menu_items', m[:main].id, [{ id: m[:cups].id, parent_id: nil, position: 0 },
+                                                 { id: m[:shop].id, parent_id: nil, position: 1 },
+                                                 { id: m[:contact].id, parent_id: nil, position: 2 }])
+      assert_equal ['Cups', { 'Shop' => %w[Mugs About] }, 'Contact'], tree_names(body['data'])
+      assert_equal 'Legal', SanMenuItem.unscoped.find(m[:legal].id).name, 'the other menu is untouched'
+      assert_equal 0, SanMenuItem.unscoped.find(m[:legal].id).position
+    end
+  end
+
+  def test_tree_refuses_cycles_other_groups_and_switched_off_updates
+    with_menu_types do
+      m = menu_fixture
+      header 'X-Spree-Token', pair!
+      snapshot = -> { SanMenuItem.unscoped.order(:id).pluck(:id, :parent_id, :position) }
+      before = snapshot.call
+
+      move('t7_menu_items', m[:main].id, [{ id: m[:shop].id, parent_id: m[:mugs].id, position: 0 }])
+      assert_equal [422, 'cycle'], [last_response.status, json.dig('error', 'code')]
+      move('t7_menu_items', m[:main].id, [{ id: m[:shop].id, parent_id: m[:shop].id, position: 0 }])
+      assert_equal [422, 'cycle'], [last_response.status, json.dig('error', 'code')]
+      # A cycle through two moves in one request.
+      move('t7_menu_items', m[:main].id, [{ id: m[:about].id, parent_id: m[:contact].id, position: 0 },
+                                          { id: m[:contact].id, parent_id: m[:about].id, position: 0 }])
+      assert_equal [422, 'cycle'], [last_response.status, json.dig('error', 'code')]
+
+      move('t7_menu_items', m[:main].id, [{ id: m[:legal].id, parent_id: nil, position: 0 }])
+      assert_equal [422, 'outside_group'], [last_response.status, json.dig('error', 'code')]
+      move('t7_menu_items', m[:main].id, [{ id: m[:about].id, parent_id: m[:legal].id, position: 0 }])
+      assert_equal [422, 'outside_group'], [last_response.status, json.dig('error', 'code')]
+      move('t7_menu_items', nil, [{ id: m[:about].id, parent_id: m[:legal].id, position: 0 }])
+      assert_equal [422, 'outside_group'], [last_response.status, json.dig('error', 'code')], 'without a group, parents stay in their group'
+      move('t7_menu_items', m[:main].id, [{ id: 0, parent_id: nil, position: 0 }])
+      assert_equal [422, 'outside_group'], [last_response.status, json.dig('error', 'code')]
+
+      move('t7_menu_items', m[:main].id, [{ id: m[:about].id, parent_id: nil, position: 'first' }])
+      assert_equal [422, 'invalid'], [last_response.status, json.dig('error', 'code')]
+      move('t7_menu_items', m[:main].id, [{ id: m[:about].id }, { id: m[:about].id }])
+      assert_equal [422, 'invalid'], [last_response.status, json.dig('error', 'code')]
+      patch '/api/admin_native/v1/resources/t7_menu_items/tree', { nodes: { id: 1 } }.to_json, 'CONTENT_TYPE' => 'application/json'
+      assert_equal 422, last_response.status
+      assert_equal before, snapshot.call
+    end
+
+    with_menu_types(update: false) do
+      m = menu_fixture
+      header 'X-Spree-Token', pair!
+      move('t7_menu_items', m[:main].id, [{ id: m[:about].id, parent_id: nil, position: 0 }])
+      assert_equal [403, 'not_allowed'], [last_response.status, json.dig('error', 'code')]
+    end
+
+    with_menu_types(editable_if: ->(item) { item.name != 'About' }) do
+      m = menu_fixture
+      header 'X-Spree-Token', pair!
+      move('t7_menu_items', m[:main].id, [{ id: m[:contact].id, parent_id: nil, position: 0 },
+                                          { id: m[:about].id, parent_id: nil, position: 0 }])
+      assert_equal [403, 'not_allowed'], [last_response.status, json.dig('error', 'code')]
+      assert_equal 2, SanMenuItem.unscoped.find(m[:contact].id).position, 'nothing applied'
+      move('t7_menu_items', m[:main].id, [{ id: m[:contact].id, parent_id: nil, position: 0 }])
+      assert_equal 200, last_response.status, 'a refused node only blocks moves of that node'
+    end
+  end
+
+  def test_tree_renumbers_positions_per_parent
+    with_menu_types do
+      m = menu_fixture
+      SanMenuItem.unscoped.where(id: m[:shop].id).update_all(position: 7)
+      SanMenuItem.unscoped.where(id: m[:about].id).update_all(position: 7)
+      SanMenuItem.unscoped.where(id: m[:contact].id).update_all(position: 30)
+      SanMenuItem.unscoped.where(id: [m[:mugs].id, m[:cups].id]).update_all(position: 4)
+      header 'X-Spree-Token', pair!
+      body = move('t7_menu_items', m[:main].id, [])
+      assert_equal 200, last_response.status, last_response.body
+      assert_equal [{ 'Shop' => %w[Mugs Cups] }, 'About', 'Contact'], tree_names(body['data']), 'ties keep id order'
+      assert_equal [['Shop', nil, 0], ['About', nil, 1], ['Contact', nil, 2]], positions([m[:shop], m[:about], m[:contact]])
+      assert_equal [['Mugs', m[:shop].id, 0], ['Cups', m[:shop].id, 1]], positions([m[:mugs], m[:cups]])
+      body['data'].each_with_index { |n, i| assert_equal i, n.dig('values', 'position') }
+
+      # Gaps and a position past the end.
+      body = move('t7_menu_items', m[:main].id, [{ id: m[:shop].id, parent_id: nil, position: 10 },
+                                                 { id: m[:about].id, parent_id: nil, position: 3 }])
+      assert_equal ['Contact', 'About', { 'Shop' => %w[Mugs Cups] }], tree_names(body['data'])
+      assert_equal [0, 1, 2], body['data'].map { |n| n.dig('values', 'position') }
+    end
+  end
+
+  def test_tree_is_capped
+    assert_equal 2000, SpreeAdminNative::Tree::MAX_NODES
+    with_menu_types do
+      m = menu_fixture
+      header 'X-Spree-Token', pair!
+      original = SpreeAdminNative::Tree::MAX_NODES
+      SpreeAdminNative::Tree.send(:remove_const, :MAX_NODES)
+      SpreeAdminNative::Tree.const_set(:MAX_NODES, 4)
+      get '/api/admin_native/v1/resources/t7_menu_items/tree', group: m[:main].id
+      assert_equal [422, 'too_large'], [last_response.status, json.dig('error', 'code')]
+      move('t7_menu_items', m[:main].id, [])
+      assert_equal [422, 'too_large'], [last_response.status, json.dig('error', 'code')]
+      tree('t7_menu_items', m[:footer].id)
+    ensure
+      if original
+        SpreeAdminNative::Tree.send(:remove_const, :MAX_NODES)
+        SpreeAdminNative::Tree.const_set(:MAX_NODES, original)
+      end
+    end
+  end
+
+  def with_taxon_tree
+    registry = SpreeAdminNative.resources
+    registry.register('t7_taxonomies') do |r|
+      r.model 'Spree::Taxonomy'
+      r.hidden
+      r.title :name
+    end
+    registry.register('t7_taxons') do |r|
+      r.model 'Spree::Taxon'
+      r.title :name
+      r.field :name, :string
+      r.field :taxonomy_id, :reference, resource: 't7_taxonomies'
+      r.view :tree, parent: :parent_id, position: :position, group: :taxonomy_id
+    end
+    yield
+  ensure
+    %w[t7_taxonomies t7_taxons].each { |k| registry.unregister(k) }
+  end
+
+  # Spree::Taxon is an awesome_nested_set: lft / rgt / depth must stay valid after moves.
+  def test_tree_keeps_a_nested_set_valid
+    with_taxon_tree do
+      taxonomy = Spree::Taxonomy.create!(name: 'T7 Menu')
+      root = taxonomy.root || Spree::Taxon.create!(name: 'T7 Menu', taxonomy: taxonomy)
+      add = ->(name, parent) { Spree::Taxon.create!(name: name, taxonomy: taxonomy, parent: parent) }
+      a = add.call('A', root)
+      b = add.call('B', root)
+      c = add.call('C', root)
+      a1 = add.call('A1', a)
+      others = Spree::Taxon.where.not(taxonomy_id: taxonomy.id).order(:id).pluck(:id, :lft, :rgt, :depth)
+      header 'X-Spree-Token', pair!
+      body = tree('t7_taxons', taxonomy.id)
+      assert_equal [{ 'T7 Menu' => [{ 'A' => ['A1'] }, 'B', 'C'] }], tree_names(body['data'])
+
+      move('t7_taxons', taxonomy.id, [{ id: c.id, parent_id: root.id, position: 0 }])
+      assert_equal 200, last_response.status, last_response.body
+      move('t7_taxons', taxonomy.id, [{ id: b.id, parent_id: a.id, position: 0 }])
+      body = move('t7_taxons', taxonomy.id, [{ id: a1.id, parent_id: root.id, position: 1 }])
+      assert_equal [{ 'T7 Menu' => ['C', 'A1', { 'A' => ['B'] }] }], tree_names(body['data'])
+
+      assert Spree::Taxon.valid?, 'lft / rgt are a valid nested set'
+      assert_equal %w[C A1 A], root.reload.children.map(&:name), "awesome_nested_set's own order agrees"
+      assert_equal %w[B], a.reload.children.map(&:name)
+      assert_equal [2, 1], [b.reload.depth, a1.reload.depth]
+      assert_equal others, Spree::Taxon.where.not(taxonomy_id: taxonomy.id).order(:id).pluck(:id, :lft, :rgt, :depth)
+
+      other = Spree::Taxon.where.not(taxonomy_id: taxonomy.id).first
+      move('t7_taxons', taxonomy.id, [{ id: other.id, parent_id: root.id, position: 0 }])
+      assert_equal [422, 'outside_group'], [last_response.status, json.dig('error', 'code')], 'a node from another taxonomy'
+    end
+  end
+
+  # --- 0.7: link fields ---------------------------------------------------------------------
+
+  def test_link_fields_read_and_write_each_kind
+    with_menu_types do
+      m = menu_fixture
+      header 'X-Spree-Token', pair!
+      manifest = manifest_of('t7_menu_items')
+      link = manifest['fields'].find { |f| f['name'] == 'link' }
+      assert_equal 'link', link['type']
+      assert_equal %w[url product taxon], link['options'], 'kinds whose type is missing are left out'
+      assert_equal [{ 'kind' => 'url' }, { 'kind' => 'product', 'resource' => 'spree_products' },
+                    { 'kind' => 'taxon', 'resource' => 'spree_taxons' }], link['kinds']
+      names = manifest['fields'].map { |f| f['name'] }
+      %w[url item_class item_id].each { |n| refute_includes names, n, 'the link replaces its columns' }
+
+      path = "/t7_menu_items/#{m[:about].id}"
+      assert_nil resource_json(:get, path).dig('data', 'values', 'link')
+
+      body = resource_json(:patch, path, values: { link: { kind: 'url', url: 'https://example.com/about' } })
+      assert_equal 200, last_response.status, last_response.body
+      assert_equal({ 'kind' => 'url', 'url' => 'https://example.com/about' }, body.dig('data', 'values', 'link'))
+      assert_equal ['https://example.com/about', 'url', nil], SanMenuItem.unscoped.find(m[:about].id).then { |i| [i.url, i.item_class, i.item_id] }
+
+      product = Spree::Product.first
+      body = resource_json(:patch, path, values: { link: { kind: 'product', id: product.id } })
+      assert_equal({ 'kind' => 'product', 'id' => product.id.to_s, 'title' => product.name }, body.dig('data', 'values', 'link'))
+      assert_equal [nil, 'product', product.id.to_s], SanMenuItem.unscoped.find(m[:about].id).then { |i| [i.url, i.item_class, i.item_id] }
+
+      taxon = Spree::Taxon.where.not(parent_id: nil).first
+      body = resource_json(:patch, path, values: { link: { kind: 'taxon', id: { id: taxon.id.to_s, title: 'ignored' } } })
+      assert_equal({ 'kind' => 'taxon', 'id' => taxon.id.to_s, 'title' => taxon.pretty_name }, body.dig('data', 'values', 'link'))
+      list = resource_json(:get, '/t7_menu_items?per_page=100')['data'].find { |r| r['id'] == m[:about].id.to_s }
+      assert_equal taxon.pretty_name, list.dig('values', 'link', 'title'), 'titles in lists too'
+      assert_equal taxon.pretty_name, tree('t7_menu_items', m[:main].id)['data'].find { |n| n['title'] == 'About' }.dig('values', 'link', 'title')
+
+      body = resource_json(:patch, path, values: { link: nil })
+      assert_nil body.dig('data', 'values', 'link')
+      assert_equal [nil, nil, nil], SanMenuItem.unscoped.find(m[:about].id).then { |i| [i.url, i.item_class, i.item_id] }
+
+      # A legacy value: an unknown kind with a URL reads as a URL.
+      SanMenuItem.unscoped.where(id: m[:about].id).update_all(url: '/legacy', item_class: 'menu-highlight')
+      assert_equal({ 'kind' => 'url', 'url' => '/legacy' }, resource_json(:get, path).dig('data', 'values', 'link'))
+
+      [[{ kind: 'page', id: 1 }, 'kind must be one of url, product, taxon'], [{ kind: 'product', id: 0 }, "links to a product that doesn't exist"],
+       [{ kind: 'product' }, 'needs a product'], [{ kind: 'url', url: ' ' }, 'needs a URL'], ['https://example.com', 'is not a valid link']].each do |value, message|
+        resource_json(:patch, path, values: { link: value })
+        assert_equal 422, last_response.status, value.inspect
+        assert_equal [message], json.dig('error', 'fields', 'link'), value.inspect
+      end
+
+      created = resource_json(:post, '/t7_menu_items', values: { name: 'Sale', menu_id: m[:main].id, link: { kind: 'product', id: product.id } })
+      assert_equal 201, last_response.status, last_response.body
+      assert_equal 'product', created.dig('data', 'values', 'link', 'kind')
+    end
+  end
+
+  # --- 0.7: inbox ---------------------------------------------------------------------------
+
+  # An in-memory inbox. `broken` makes one method return bad data or raise.
+  class StubInbox < SpreeAdminNative::Inbox::Adapter
+    attr_accessor :calls, :broken, :up
+
+    def initialize
+      super
+      @calls = []
+      @up = true
+      now = Time.utc(2026, 11, 28, 10, 0, 0)
+      @conversation = {
+        id: 12, status: 'open', channel: 'web', subject: nil,
+        customer: { name: 'Ada', email: 'ada@example.com', avatar_url: nil, contact_id: 7, user_id: 3 },
+        assignee: { id: 1, email: 'staff@example.com' }, unread: 2,
+        last_message: { body: 'Is this in stock?', direction: 'inbound', at: now },
+        updated_at: now, snoozed_until: nil
+      }
+      @messages = (1..3).map do |i|
+        { 'id' => 300 + i, 'direction' => i == 3 ? 'note' : 'inbound', 'body' => "Message #{i}", 'channel' => 'web',
+          'author' => { 'kind' => i == 3 ? 'staff' : 'customer', 'name' => i == 3 ? 'Staff' : 'Ada' },
+          'attachments' => i == 2 ? [{ 'url' => 'https://example.com/a.png', 'filename' => 'a.png', 'content_type' => 'image/png' }] : [],
+          'created_at' => (now + i).iso8601, 'read_at' => nil, 'delivery' => nil }
+      end
+    end
+
+    def available?
+      raise 'down' if up == :raise
+
+      up
+    end
+
+    def conversations(filters)
+      log(:conversations, filters)
+      return { records: 'nope', total: 1 } if broken == :records
+      return { records: [@conversation.merge(status: nil)], total: 1 } if broken == :conversation
+
+      { records: [@conversation], total: 1 }
+    end
+
+    def conversation(id)
+      log(:conversation, id)
+      raise 'database on fire' if broken == :raise
+
+      id.to_s == '12' ? @conversation : nil
+    end
+
+    def messages(conversation, before:, after:, limit:)
+      log(:messages, conversation[:id], before: before, after: after, limit: limit)
+      return [@messages.first.merge('direction' => 'sideways')] if broken == :message
+
+      @messages
+    end
+
+    def reply(conversation, admin, body:, attachments:, note:)
+      log(:reply, conversation[:id], admin.id, body: body, attachments: attachments, note: note)
+      { id: 400, direction: note ? 'note' : 'outbound', body: body, channel: 'web', author: { kind: 'staff', name: admin.email },
+        attachments: [], created_at: Time.current, read_at: nil, delivery: note ? nil : 'sent' }
+    end
+
+    def update(conversation, admin, attrs)
+      log(:update, conversation[:id], admin.id, attrs)
+      raise SpreeAdminNative::AdapterInvalid, 'No such staff member.' if attrs[:assignee_id] == '404'
+
+      @conversation.merge(attrs.slice(:status, :snoozed_until))
+    end
+
+    def mark_read(conversation, admin)
+      log(:mark_read, conversation[:id], admin.id)
+      @conversation.merge(unread: 0)
+    end
+
+    def summary(admin)
+      log(:summary, admin.id)
+      return { open: 4, unassigned: 1 } if broken == :summary
+
+      { 'open' => 4, 'unassigned' => 1, 'unread' => 2 }
+    end
+
+    def customer_context(conversation)
+      log(:customer_context, conversation[:id])
+      {
+        contact: { id: 7, name: 'Ada', email: 'ada@example.com', phone: nil },
+        user: { id: 3, email: 'ada@example.com' },
+        session: { id: 55, current_url: '/products/mug', last_seen_at: Time.current - 30 },
+        cart: { order_number: 'R123', item_count: 2, total: BigDecimal('18.5'), currency: 'USD',
+                items: [{ name: 'Mug', quantity: 2, image_url: nil }] },
+        recent_orders: [{ number: 'R100', state: 'complete', total: 42, completed_at: Time.utc(2026, 11, 1) }]
+      }
+    end
+
+    private
+
+    def log(*call)
+      calls << call
+    end
+  end
+
+  # Implements nothing: every call raises NotImplementedError.
+  class EmptyInbox < SpreeAdminNative::Inbox::Adapter; end
+
+  def with_inbox(adapter = StubInbox.new, store: ActiveSupport::Cache::MemoryStore.new)
+    with_gem_config(inbox_adapter: adapter, cache_store: store) { yield adapter }
+  end
+
+  def inbox(method, path, body = nil)
+    send(method, "/api/admin_native/v1/inbox#{path}", body&.to_json, 'CONTENT_TYPE' => 'application/json')
+    last_response.body.empty? ? {} : json
+  end
+
+  def test_inbox_capability_follows_the_adapter
+    with_gem_config(inbox_adapter: nil) do
+      get '/api/admin_native/v1/capabilities'
+      refute_includes json['capabilities'], 'inbox'
+      header 'X-Spree-Token', pair!
+      inbox(:get, '/conversations')
+      assert_equal [404, 'unsupported'], [last_response.status, json.dig('error', 'code')]
+    end
+    with_inbox do |adapter|
+      get '/api/admin_native/v1/capabilities'
+      assert_includes json['capabilities'], 'inbox'
+      adapter.up = false
+      get '/api/admin_native/v1/capabilities'
+      refute_includes json['capabilities'], 'inbox'
+      inbox(:get, '/summary')
+      assert_equal 404, last_response.status
+      adapter.up = :raise
+      get '/api/admin_native/v1/capabilities'
+      refute_includes json['capabilities'], 'inbox'
+    end
+    with_inbox(StubInbox.name) do
+      get '/api/admin_native/v1/capabilities'
+      assert_includes json['capabilities'], 'inbox', 'a class name works too'
+    end
+  end
+
+  def test_inbox_needs_an_admin
+    with_inbox do
+      %w[/conversations /conversations/12 /conversations/12/messages /summary].each do |path|
+        inbox(:get, path)
+        assert_equal 401, last_response.status, path
+      end
+      inbox(:post, '/conversations/12/messages', body: 'Hi')
+      assert_equal 401, last_response.status
+    end
+  end
+
+  def test_inbox_lists_conversations_with_filters
+    with_inbox do |adapter|
+      header 'X-Spree-Token', pair!
+      body = inbox(:get, '/conversations')
+      assert_equal 200, last_response.status, last_response.body
+      filters = adapter.calls.last.last
+      assert_equal ['open', 'any', nil, 1, 25, nil, @admin.id],
+                   [filters[:status], filters[:assignee], filters[:q], filters[:page], filters[:per_page], filters[:updated_since], filters[:admin].id]
+      assert_equal({ 'page' => 1, 'per_page' => 25, 'total_count' => 1 }, body['meta'])
+      assert_equal({
+                     'id' => '12', 'status' => 'open', 'channel' => 'web', 'subject' => nil,
+                     'customer' => { 'name' => 'Ada', 'email' => 'ada@example.com', 'avatar_url' => nil, 'contact_id' => '7', 'user_id' => '3' },
+                     'assignee' => { 'id' => '1', 'email' => 'staff@example.com' }, 'unread' => 2,
+                     'last_message' => { 'body' => 'Is this in stock?', 'direction' => 'inbound', 'at' => '2026-11-28T10:00:00Z' },
+                     'updated_at' => '2026-11-28T10:00:00Z', 'snoozed_until' => nil
+                   }, body['data'].first)
+
+      inbox(:get, '/conversations?status=all&assignee=me&q=ada&page=2&per_page=500&updated_since=2026-11-28T09:00:00Z')
+      filters = adapter.calls.last.last
+      assert_equal ['all', 'me', 'ada', 2, 100], filters.values_at(:status, :assignee, :q, :page, :per_page)
+      assert_equal Time.utc(2026, 11, 28, 9), filters[:updated_since]
+
+      inbox(:get, '/conversations?status=spam')
+      assert_equal [422, ['must be one of open, snoozed, closed, all']], [last_response.status, json.dig('error', 'fields', 'status')]
+      inbox(:get, '/conversations?assignee=you')
+      assert_equal 422, last_response.status
+      inbox(:get, '/conversations?updated_since=yesterday')
+      assert_equal [422, ['must be an ISO 8601 time']], [last_response.status, json.dig('error', 'fields', 'updated_since')]
+    end
+  end
+
+  def test_inbox_conversation_with_customer_context_and_messages
+    with_inbox do |adapter|
+      header 'X-Spree-Token', pair!
+      body = inbox(:get, '/conversations/12')
+      assert_equal 200, last_response.status, last_response.body
+      assert_equal '12', body.dig('data', 'id')
+      context = body.dig('data', 'customer_context')
+      assert_equal({ 'id' => '7', 'name' => 'Ada', 'email' => 'ada@example.com', 'phone' => nil }, context['contact'])
+      assert_equal({ 'id' => '3', 'email' => 'ada@example.com' }, context['user'])
+      assert_equal ['55', '/products/mug', true], context['session'].values_at('id', 'current_url', 'online')
+      assert_equal({ 'order_number' => 'R123', 'item_count' => 2, 'total' => '18.50', 'currency' => 'USD',
+                     'items' => [{ 'name' => 'Mug', 'quantity' => 2, 'image_url' => nil }] }, context['cart'])
+      assert_equal [{ 'number' => 'R100', 'state' => 'complete', 'total' => '42.00', 'completed_at' => '2026-11-01T00:00:00Z' }], context['recent_orders']
+
+      inbox(:get, '/conversations/99')
+      assert_equal [404, 'not_found'], [last_response.status, json.dig('error', 'code')]
+
+      body = inbox(:get, '/conversations/12/messages')
+      assert_equal [:messages, 12, { before: nil, after: nil, limit: 50 }], adapter.calls.last
+      assert_equal %w[301 302 303], body['data'].map { |m| m['id'] }
+      assert_equal({ 'id' => '302', 'direction' => 'inbound', 'body' => 'Message 2', 'channel' => 'web',
+                     'author' => { 'kind' => 'customer', 'name' => 'Ada' },
+                     'attachments' => [{ 'url' => 'https://example.com/a.png', 'filename' => 'a.png', 'content_type' => 'image/png' }],
+                     'created_at' => '2026-11-28T10:00:02Z', 'read_at' => nil, 'delivery' => nil }, body['data'][1])
+      assert_equal 'note', body['data'][2]['direction']
+
+      body = inbox(:get, '/conversations/12/messages?before=303&limit=2')
+      assert_equal [:messages, 12, { before: '303', after: nil, limit: 2 }], adapter.calls.last
+      assert_equal %w[302 303], body['data'].map { |m| m['id'] }, 'more than the limit keeps the newest'
+      body = inbox(:get, '/conversations/12/messages?after=300&limit=500')
+      assert_equal [:messages, 12, { before: nil, after: '300', limit: 200 }], adapter.calls.last
+      assert_equal 200, body.dig('meta', 'limit')
+    end
+  end
+
+  def test_inbox_reply_note_update_read_and_summary
+    with_inbox do |adapter|
+      header 'X-Spree-Token', pair!
+      body = inbox(:post, '/conversations/12/messages', body: '  In stock, yes.  ')
+      assert_equal 201, last_response.status, last_response.body
+      assert_equal [:reply, 12, @admin.id, { body: 'In stock, yes.', attachments: [], note: false }], adapter.calls.last
+      assert_equal ['outbound', 'sent', 'staff'], [body.dig('data', 'direction'), body.dig('data', 'delivery'), body.dig('data', 'author', 'kind')]
+
+      inbox(:post, '/conversations/12/messages', body: 'VIP', note: true)
+      assert_equal true, adapter.calls.last.last[:note]
+      assert_equal 'note', json.dig('data', 'direction')
+
+      blob = upload(StringIO.new(png), 'photo.png', 'image/png').dig('data', 'signed_id')
+      inbox(:post, '/conversations/12/messages', attachments: [blob])
+      assert_equal 201, last_response.status, last_response.body
+      assert_equal [blob], adapter.calls.last.last[:attachments]
+
+      inbox(:post, '/conversations/12/messages', body: ' ')
+      assert_equal [422, ["can't be blank"]], [last_response.status, json.dig('error', 'fields', 'body')]
+      inbox(:post, '/conversations/12/messages', body: 'x' * 4001)
+      assert_equal 422, last_response.status
+      inbox(:post, '/conversations/12/messages', body: 'Look', attachments: ['forged'])
+      assert_equal [422, ['is not a valid upload']], [last_response.status, json.dig('error', 'fields', 'attachments')]
+      inbox(:post, '/conversations/99/messages', body: 'Hi')
+      assert_equal 404, last_response.status
+
+      body = inbox(:patch, '/conversations/12', status: 'snoozed', snoozed_until: '2026-11-29T09:00:00Z', assignee_id: 1)
+      assert_equal 200, last_response.status, last_response.body
+      attrs = adapter.calls.last.last
+      assert_equal ['snoozed', '1', Time.utc(2026, 11, 29, 9)], attrs.values_at(:status, :assignee_id, :snoozed_until)
+      assert_equal ['snoozed', '2026-11-29T09:00:00Z'], body['data'].values_at('status', 'snoozed_until')
+      inbox(:patch, '/conversations/12', assignee_id: nil, snoozed_until: nil)
+      assert_equal({ assignee_id: nil, snoozed_until: nil }, adapter.calls.last.last, 'only the keys sent')
+      inbox(:patch, '/conversations/12', assignee_id: 'me')
+      assert_equal({ assignee_id: @admin.id.to_s }, adapter.calls.last.last, "'me' is the signed-in admin")
+      inbox(:patch, '/conversations/12', status: 'deleted')
+      assert_equal 422, last_response.status
+      inbox(:patch, '/conversations/12', snoozed_until: 'tomorrow')
+      assert_equal 422, last_response.status
+      inbox(:patch, '/conversations/12', assignee_id: 404)
+      assert_equal [422, 'invalid', 'No such staff member.'], [last_response.status, json.dig('error', 'code'), json.dig('error', 'message')]
+
+      body = inbox(:post, '/conversations/12/read')
+      assert_equal [200, 0], [last_response.status, body.dig('data', 'unread')]
+      assert_equal [:mark_read, 12, @admin.id], adapter.calls.last
+
+      body = inbox(:get, '/summary')
+      assert_equal({ 'open' => 4, 'unassigned' => 1, 'unread' => 2, 'me' => { 'id' => @admin.id.to_s, 'email' => @admin.email } }, body['data'])
+      assert_equal [4, 1, 2], body.values_at('open', 'unassigned', 'unread')
+    end
+  end
+
+  def test_inbox_validates_adapter_output_and_reports_failures
+    with_inbox do |adapter|
+      header 'X-Spree-Token', pair!
+      { records: '/conversations', conversation: '/conversations', message: '/conversations/12/messages', summary: '/summary' }.each do |mode, path|
+        adapter.broken = mode
+        inbox(:get, path)
+        assert_equal [502, 'adapter_failed'], [last_response.status, json.dig('error', 'code')], mode.to_s
+      end
+      adapter.broken = :summary
+      inbox(:get, '/summary')
+      assert_equal "The store's inbox summary is missing unread.", json.dig('error', 'message')
+      adapter.broken = :raise
+      inbox(:get, '/conversations/12')
+      assert_equal 502, last_response.status
+      refute_includes last_response.body, 'database on fire'
+      refute_includes last_response.body, '.rb:', 'no stack trace'
+    end
+    with_inbox(EmptyInbox.new) do
+      get '/api/admin_native/v1/capabilities'
+      assert_includes json['capabilities'], 'inbox', 'available? is true by default'
+      header 'X-Spree-Token', pair!
+      inbox(:get, '/summary')
+      assert_equal [502, 'adapter_failed'], [last_response.status, json.dig('error', 'code')], 'NotImplementedError'
+      inbox(:get, '/conversations/1')
+      assert_equal 502, last_response.status
+    end
+  end
+
+  # Records ExpoPush deliveries instead of sending them.
+  def capture_pushes
+    sent = []
+    adapter = SpreeAdminNative::PushJob.queue_adapter
+    SpreeAdminNative::PushJob.queue_adapter = :inline
+    SpreeAdminNative::ExpoPush.class_eval do
+      alias_method :__san_deliver, :deliver
+      define_method(:deliver) do |devices, title:, body:, data: {}|
+        sent << { devices: devices.to_a.map(&:id), title: title, body: body, data: data }
+        devices.to_a.size
+      end
+    end
+    yield sent
+  ensure
+    SpreeAdminNative::PushJob.queue_adapter = adapter if adapter
+    SpreeAdminNative::ExpoPush.class_eval do
+      alias_method :deliver, :__san_deliver
+      remove_method :__san_deliver
+    end
+  end
+
+  def test_inbound_messages_push_once_per_conversation_per_two_minutes
+    SpreeAdminNative::Device.update_all(push_token: nil)
+    device, = SpreeAdminNative::Device.issue!(owner: @admin, name: 'Inbox phone')
+    device.update!(push_token: 'ExponentPushToken[inbox]')
+    conversation = { 'id' => 12, 'customer' => { 'name' => 'Ada', 'email' => 'ada@example.com' } }
+    with_inbox do
+      capture_pushes do |sent|
+        long = "Is this in stock? #{'Really. ' * 30}"
+        assert SpreeAdminNative::Inbox.notify_inbound(conversation, { body: long, direction: 'inbound' })
+        assert_equal 1, sent.size
+        push = sent.first
+        assert_equal [[device.id], 'Ada'], [push[:devices], push[:title]]
+        assert_equal 140, push[:body].length
+        assert push[:body].end_with?('…')
+        assert_equal({ 'type' => 'inbox', 'conversation_id' => '12' }, push[:data])
+
+        refute SpreeAdminNative::Inbox.notify_inbound(conversation, { body: 'Hello?' }), 'throttled'
+        assert SpreeAdminNative::Inbox.notify_inbound({ id: 13, customer: { email: 'bo@example.com' } }, { body: 'Hi' })
+        assert_equal ['bo@example.com', 'Hi'], [sent.last[:title], sent.last[:body]], 'the email when there is no name'
+        refute SpreeAdminNative::Inbox.notify_inbound({ id: 14 }, { body: 'Reply', direction: 'outbound' }), 'only inbound'
+        refute SpreeAdminNative::Inbox.notify_inbound({ customer: {} }, { body: 'No id' }), 'never raises'
+        assert_equal 2, sent.size
+
+        travel 121.seconds do
+          assert SpreeAdminNative::Inbox.notify_inbound(conversation, { body: 'Still there?' })
+        end
+        assert_equal 3, sent.size
+      end
+    end
+  end
+
+  # --- 0.7: carts ---------------------------------------------------------------------------
+
+  def make_cart(email:, state: 'cart', updated: Time.current, items: 1, created_by: nil, user: nil, complete: false)
+    order = Spree::Order.create!(email: email, store: Spree::Store.default, created_by: created_by, user: user, currency: 'USD')
+    variant = Spree::Variant.where(is_master: false).first
+    Spree::Cart::AddItem.call(order: order, variant: variant, quantity: items) if items.positive?
+    order.update_columns(state: state, updated_at: updated, email: email) # Spree copies a user's email in
+    order.update_columns(completed_at: Time.current, state: 'complete') if complete
+    order
+  end
+
+  def carts(params = {})
+    get '/api/admin_native/v1/carts', { per_page: 100 }.merge(params)
+    assert_equal 200, last_response.status, last_response.body
+    json
+  end
+
+  def test_carts_list_shoppers_carts_with_items
+    get '/api/admin_native/v1/carts'
+    assert_equal 401, last_response.status
+
+    shopper = Spree.user_class.where.not(id: @admin.id).detect { |u| !u.has_spree_role?(:admin) }
+    fresh = make_cart(email: 'fresh@example.com', items: 2, user: shopper, created_by: shopper)
+    guest = make_cart(email: nil, state: 'address', updated: 10.minutes.ago)
+    old = make_cart(email: 'old@example.com', state: 'payment', updated: 2.hours.ago)
+    delivery = make_cart(email: 'ship@example.com', state: 'delivery', updated: 30.minutes.ago)
+    empty = make_cart(email: 'empty@example.com', items: 0)
+    confirm = make_cart(email: 'confirm@example.com', state: 'confirm')
+    placed = make_cart(email: 'placed@example.com', complete: true)
+    draft = make_cart(email: 'draft@example.com', created_by: @admin)
+    own = make_cart(email: @admin.email, created_by: @admin, user: @admin)
+
+    header 'X-Spree-Token', pair!
+    body = carts
+    numbers = body['data'].map { |c| c['number'] }
+    mine = [own, fresh, guest, delivery, old].map(&:number)
+    assert_equal mine, numbers.select { |n| mine.include?(n) }, 'newest activity first'
+    [empty, confirm, placed, draft].each { |o| refute_includes numbers, o.number }
+    assert_operator body.dig('meta', 'total_count'), :>=, 5
+
+    cart = body['data'].find { |c| c['number'] == fresh.number }
+    variant = fresh.line_items.first.variant
+    assert_equal({ 'number' => fresh.number, 'state' => 'cart', 'email' => 'fresh@example.com', 'user_id' => shopper.id.to_s,
+                   'item_count' => 2, 'total' => format('%.2f', fresh.reload.total), 'currency' => 'USD',
+                   'updated_at' => fresh.updated_at.iso8601, 'abandoned' => false,
+                   'items' => [{ 'name' => variant.product.name, 'variant_sku' => variant.sku.presence, 'quantity' => 2,
+                                 'image_url' => cart['items'].first['image_url'] }] }, cart)
+    assert_equal true, body['data'].find { |c| c['number'] == old.number }['abandoned']
+    assert_nil body['data'].find { |c| c['number'] == guest.number }['email']
+  end
+
+  def test_carts_filters_and_detail
+    fresh = make_cart(email: 'fresh@example.com')
+    guest = make_cart(email: nil, state: 'address', updated: 10.minutes.ago)
+    old = make_cart(email: 'old@example.com', state: 'payment', updated: 2.hours.ago)
+    old_guest = make_cart(email: nil, updated: 3.hours.ago)
+    header 'X-Spree-Token', pair!
+    pick = ->(body) { body['data'].map { |c| c['number'] } & [fresh, guest, old, old_guest].map(&:number) }
+
+    assert_equal [fresh, guest].map(&:number), pick.call(carts(active_within: 60))
+    assert_equal [fresh, old].map(&:number), pick.call(carts(with_email: true))
+    assert_equal [guest, old_guest].map(&:number), pick.call(carts(with_email: false))
+    assert_equal [old].map(&:number), pick.call(carts(abandoned: true))
+    assert_equal [fresh, guest, old_guest].map(&:number), pick.call(carts(abandoned: false))
+    assert_equal [fresh].map(&:number), pick.call(carts(active_within: 5, with_email: true))
+    get '/api/admin_native/v1/carts', active_within: 0
+    assert_equal 422, last_response.status
+
+    get "/api/admin_native/v1/carts/#{old.number}"
+    assert_equal 200, last_response.status, last_response.body
+    assert_equal [old.number, 'payment', 1], json['data'].values_at('number', 'state', 'item_count')
+    assert_equal 1, json.dig('data', 'items').size
+    add_image(old.line_items.first.variant, alt: 'Cart photo')
+    get "/api/admin_native/v1/carts/#{old.number}"
+    assert_match(%r{\Ahttp://localhost/rails/active_storage/.+test\.png\z}, json.dig('data', 'items', 0, 'image_url'))
+    get "/api/admin_native/v1/carts/#{Spree::Order.complete.first.number}"
+    assert_equal 404, last_response.status
+  end
+
+  # --- 0.7: visitors ------------------------------------------------------------------------
+
+  class StubVisitors < SpreeAdminNative::Visitors::Adapter
+    attr_accessor :calls, :broken
+
+    def initialize
+      super
+      @calls = []
+    end
+
+    def sessions(filters)
+      calls << [:sessions, filters]
+      return { records: [{ id: 1 }], total: 1 } if broken
+
+      online = session_hash(55, Time.current - 30)
+      away = session_hash(56, Time.current - 600).merge(contact: nil, utm: nil, cart: nil, device: 'fridge', conversation_id: nil)
+      records = filters[:online] == true ? [online] : [online, away]
+      { records: records, total: records.size }
+    end
+
+    def session(id)
+      calls << [:session, id]
+      return nil unless %w[55 56].include?(id)
+
+      pages = (1..60).map { |i| { url: "/p/#{i}", title: "Page #{i}", at: Time.utc(2026, 11, 28, 9) + (i * 60) } }
+      session_hash(id.to_i, Time.current - 30).merge(pages: pages.shuffle(random: Random.new(1)))
+    end
+
+    def start_conversation(session, admin)
+      calls << [:start_conversation, session[:id], admin.id]
+      session[:id] == 56 ? 77 : { conversation_id: 12 }
+    end
+
+    def session_hash(id, seen)
+      { id: id, contact: { id: 7, name: 'Ada', email: 'ada@example.com' }, user_id: 3, current_url: '/products/mug',
+        current_title: 'Mug', referrer: 'https://search.example.com', utm: { source: 'news', medium: 'email', campaign: 'fall' },
+        device: 'mobile', country: 'NL', started_at: seen - 300, last_seen_at: seen, page_views: 4,
+        cart: { order_number: 'R123', item_count: 2, total: '18.50', currency: 'USD' }, conversation_id: 12 }
+    end
+  end
+
+  def test_visitors_endpoints_over_an_adapter
+    with_gem_config(visitors_adapter: nil) do
+      get '/api/admin_native/v1/capabilities'
+      refute_includes json['capabilities'], 'visitors'
+      assert_includes json['capabilities'], 'carts'
+      header 'X-Spree-Token', pair!
+      get '/api/admin_native/v1/visitors'
+      assert_equal [404, 'unsupported'], [last_response.status, json.dig('error', 'code')]
+    end
+    adapter = StubVisitors.new
+    with_gem_config(visitors_adapter: adapter) do
+      get '/api/admin_native/v1/capabilities'
+      assert_includes json['capabilities'], 'visitors'
+
+      get '/api/admin_native/v1/visitors', online: true
+      assert_equal 200, last_response.status, last_response.body
+      assert_equal [true, 1, 25], adapter.calls.last.last.values_at(:online, :page, :per_page)
+      assert_equal({ 'page' => 1, 'per_page' => 25, 'total_count' => 1 }, json['meta'])
+      session = json['data'].first
+      assert_equal %w[id contact user_id current_url current_title referrer utm device country started_at last_seen_at online page_views cart conversation_id],
+                   session.keys
+      assert_equal ['55', '3', 'mobile', true, 4, '12'], session.values_at('id', 'user_id', 'device', 'online', 'page_views', 'conversation_id')
+      assert_equal({ 'id' => '7', 'name' => 'Ada', 'email' => 'ada@example.com' }, session['contact'])
+      assert_equal({ 'source' => 'news', 'medium' => 'email', 'campaign' => 'fall' }, session['utm'])
+      assert_equal({ 'order_number' => 'R123', 'item_count' => 2, 'total' => '18.50', 'currency' => 'USD' }, session['cart'])
+
+      get '/api/admin_native/v1/visitors'
+      assert_nil adapter.calls.last.last[:online]
+      away = json['data'].last
+      assert_equal [false, nil, nil, nil, nil], away.values_at('online', 'contact', 'utm', 'cart', 'device'), 'online from last_seen_at; unknown devices dropped'
+
+      get '/api/admin_native/v1/visitors/55'
+      assert_equal 200, last_response.status
+      pages = json.dig('data', 'pages')
+      assert_equal 50, pages.size
+      assert_equal ['/p/60', '/p/11'], [pages.first['url'], pages.last['url']], 'the last 50, newest first'
+      get '/api/admin_native/v1/visitors/99'
+      assert_equal 404, last_response.status
+
+      post '/api/admin_native/v1/visitors/55/conversation'
+      assert_equal 200, last_response.status
+      assert_equal [{ 'conversation_id' => '12' }, '12'], [json['data'], json['conversation_id']]
+      assert_equal [:start_conversation, 55, @admin.id], adapter.calls.last
+      post '/api/admin_native/v1/visitors/56/conversation'
+      assert_equal '77', json.dig('data', 'conversation_id'), 'a bare id works too'
+
+      adapter.broken = true
+      get '/api/admin_native/v1/visitors'
+      assert_equal [502, 'adapter_failed'], [last_response.status, json.dig('error', 'code')], 'a session without last_seen_at'
+    end
+  end
+
+  # --- 0.7: summary -------------------------------------------------------------------------
+
+  def test_summary_counts_active_carts_and_visitors_online
+    make_cart(email: 'fresh@example.com')
+    make_cart(email: 'old@example.com', updated: 2.hours.ago)
+    header 'X-Spree-Token', pair!
+    with_gem_config(visitors_adapter: nil) do
+      get '/api/admin_native/v1/summary'
+      assert_equal 200, last_response.status
+      refute json.key?('visitors_online')
+      assert_equal SpreeAdminNative::Carts.active_count, json['active_carts']
+      assert_operator json['active_carts'], :>=, 1
+      with_gem_config(active_cart_minutes: 180) do
+        get '/api/admin_native/v1/summary'
+        assert_equal SpreeAdminNative::Carts.scope(active_within: 180).count, json['active_carts']
+      end
+    end
+    adapter = StubVisitors.new
+    with_gem_config(visitors_adapter: adapter) do
+      get '/api/admin_native/v1/summary'
+      assert_equal 1, json['visitors_online']
+      assert_equal [true, 1, 1, @admin.id], adapter.calls.last.last.then { |f| [f[:online], f[:page], f[:per_page], f[:admin].id] }
+      adapter.broken = true
+      def adapter.sessions(_filters)
+        raise 'down'
+      end
+      get '/api/admin_native/v1/summary'
+      assert_equal 200, last_response.status, 'Home still loads'
+      refute json.key?('visitors_online')
+    end
   end
 end

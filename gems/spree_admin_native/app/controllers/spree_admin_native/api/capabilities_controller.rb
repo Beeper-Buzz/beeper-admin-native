@@ -28,6 +28,10 @@ module SpreeAdminNative
         list << 'admin.resources' if SpreeAdminNative.resources.any?
         # The app version gate (GET app_version).
         list << 'app.versionGate' if AppVersion.enabled?
+        # Customer conversations and storefront sessions need the host's adapters; carts are core Spree.
+        list << 'inbox' if Inbox.available?
+        list << 'carts'
+        list << 'visitors' if Visitors.available?
         list + SpreeAdminNative.config.extra_capabilities
       end
 
