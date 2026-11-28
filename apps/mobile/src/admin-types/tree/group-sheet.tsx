@@ -106,7 +106,7 @@ export function GroupSheet({ groupType }: { groupType: AdminResource }) {
   const list = groups.data?.items ?? [];
 
   return (
-    <Sheet>
+    <Sheet fill>
       <Text size="title3" font="uiSemibold" accessibilityRole="header">
         {groupType.label}
       </Text>
@@ -115,7 +115,7 @@ export function GroupSheet({ groupType }: { groupType: AdminResource }) {
       ) : groups.error ? (
         <EmptyState title={`Couldn't load ${groupType.label.toLowerCase()}`} body={groups.error.message} />
       ) : (
-        <ScrollView style={{ maxHeight: 420 }} contentContainerStyle={{ gap: space[4] }}>
+        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ gap: space[4] }}>
           {list.map((record) => (
             <GroupRow
               key={`${record.id}:${record.title}`}

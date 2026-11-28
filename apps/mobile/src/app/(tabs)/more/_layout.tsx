@@ -1,6 +1,9 @@
 import { Stack } from 'expo-router';
 import { useTheme } from '@/theme/theme';
 
+/** Sheets that hold a list: two thirds of the screen, draggable to nearly full. */
+const LIST_SHEET_DETENTS = [0.66, 0.95];
+
 export default function MoreLayout() {
   const { colors, fonts } = useTheme();
   return (
@@ -26,7 +29,9 @@ export default function MoreLayout() {
         name="admin/pick"
         options={{
           presentation: 'formSheet',
-          sheetAllowedDetents: 'fitToContents',
+          // A list loads after the sheet opens, and fitToContents can't size scrolling content
+          // (rows overlapped); fixed detents with a flex list can.
+          sheetAllowedDetents: LIST_SHEET_DETENTS,
           sheetGrabberVisible: true,
           headerShown: false,
         }}
@@ -45,7 +50,9 @@ export default function MoreLayout() {
         name="admin/move"
         options={{
           presentation: 'formSheet',
-          sheetAllowedDetents: 'fitToContents',
+          // A list loads after the sheet opens, and fitToContents can't size scrolling content
+          // (rows overlapped); fixed detents with a flex list can.
+          sheetAllowedDetents: LIST_SHEET_DETENTS,
           sheetGrabberVisible: true,
           headerShown: false,
         }}
@@ -54,7 +61,9 @@ export default function MoreLayout() {
         name="admin/groups"
         options={{
           presentation: 'formSheet',
-          sheetAllowedDetents: 'fitToContents',
+          // A list loads after the sheet opens, and fitToContents can't size scrolling content
+          // (rows overlapped); fixed detents with a flex list can.
+          sheetAllowedDetents: LIST_SHEET_DETENTS,
           sheetGrabberVisible: true,
           headerShown: false,
         }}

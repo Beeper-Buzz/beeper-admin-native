@@ -79,11 +79,11 @@ export function MoveSheet({ type, id, group }: { type: AdminResource; id: string
   const unchanged = parent === now.parentId && at === now.position;
 
   return (
-    <Sheet>
+    <Sheet fill>
       <Text size="title3" font="uiSemibold" accessibilityRole="header">
         Move “{node.title}”
       </Text>
-      <ScrollView style={{ maxHeight: 480 }} contentContainerStyle={{ gap: space[3] }}>
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ gap: space[3] }}>
         <View accessibilityRole="radiogroup" accessibilityLabel="Put it under" style={{ gap: 2 }}>
           <Label>Under</Label>
           {parentChoices(nodes, id).map((c) => (

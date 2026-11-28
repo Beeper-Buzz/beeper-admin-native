@@ -49,7 +49,7 @@ export default function ReferencePickerSheet() {
     ) : null;
 
   return (
-    <Sheet>
+    <Sheet fill>
       <Text size="title3" font="uiSemibold" accessibilityRole="header">
         Choose {label?.toLowerCase() || type?.label.toLowerCase()}
       </Text>
@@ -65,7 +65,7 @@ export default function ReferencePickerSheet() {
         />
       ) : null}
       <FlatList
-        style={{ maxHeight: 420, marginHorizontal: -layout.gutter }}
+        style={{ flex: 1, marginHorizontal: -layout.gutter }}
         keyboardShouldPersistTaps="handled"
         data={items}
         keyExtractor={(r) => r.id}

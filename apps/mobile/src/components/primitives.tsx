@@ -17,12 +17,17 @@ import { Text } from './text';
  * Root of a form sheet (`presentation: 'formSheet'`, `sheetAllowedDetents: 'fitToContents'`):
  * sized by its content, not the screen, and with no safe-area inset at the top.
  */
-export function Sheet({ style, ...rest }: ViewProps) {
+/**
+ * A form sheet's root. Sized by its content for `fitToContents` sheets; `fill` stretches it to a
+ * fixed-detent sheet so a list inside can take the remaining height (flex: 1).
+ */
+export function Sheet({ style, fill, ...rest }: ViewProps & { fill?: boolean }) {
   const { colors } = useTheme();
   return (
     <View
       style={[
         { backgroundColor: colors.bg, padding: layout.gutter, paddingTop: space[5], gap: space[4] },
+        fill ? { flex: 1 } : null,
         style,
       ]}
       {...rest}

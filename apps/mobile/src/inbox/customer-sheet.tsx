@@ -51,11 +51,8 @@ export function CustomerSheet({ id, now = new Date() }: { id: string; now?: Date
     });
 
   return (
-    <Sheet>
-      <ScrollView
-        style={{ maxHeight: 560 }}
-        contentContainerStyle={{ gap: space[5], paddingBottom: space[2] }}
-      >
+    <Sheet fill>
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ gap: space[5], paddingBottom: space[2] }}>
         <View style={{ gap: space[1] }}>
           <Text size="title3" font="uiSemibold" accessibilityRole="header">
             {name}

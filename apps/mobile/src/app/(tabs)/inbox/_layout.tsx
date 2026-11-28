@@ -20,7 +20,9 @@ export default function InboxLayout() {
         name="customer"
         options={{
           presentation: 'formSheet',
-          sheetAllowedDetents: 'fitToContents',
+          // Scrolling content that loads after the sheet opens needs fixed detents: fitToContents
+          // can't size a ScrollView and its text overlapped.
+          sheetAllowedDetents: [0.66, 0.95],
           sheetGrabberVisible: true,
           headerShown: false,
         }}
