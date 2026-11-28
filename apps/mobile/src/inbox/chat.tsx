@@ -2,8 +2,10 @@ import { customerName, type Message } from '@instincts/spree-domain';
 import { layout, space } from '@instincts/spree-ui';
 import { router, Stack } from 'expo-router';
 import { ActivityIndicator, FlatList, KeyboardAvoidingView, Platform, Pressable, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { EmptyState, Screen } from '@/components/primitives';
 import { Text } from '@/components/text';
+import { useKeyboardVisible } from '@/components/use-keyboard-visible';
 import { Composer } from './composer';
 import { MessageBubble } from './message-bubble';
 import { useConversation, useMessages } from './use-inbox';
@@ -16,6 +18,7 @@ import { useConversation, useMessages } from './use-inbox';
 export function Chat({ id }: { id: string }) {
   const conversation = useConversation(id);
   const messages = useMessages(id);
+  const keyboard = useKeyboardVisible();
   const c = conversation.data;
   const name = c ? customerName(c.customer) : '';
   // Inverted: the newest message first in the data is drawn at the bottom.
@@ -75,12 +78,17 @@ export function Chat({ id }: { id: string }) {
             }
           />
         )}
-        {closed ? (
-          <Text size="footnote" tone="muted" style={{ textAlign: 'center', paddingVertical: space[1] }}>
-            This conversation is closed. Reopen it from Customer.
-          </Text>
-        ) : null}
-        <Composer conversationId={id} onSent={(m) => messages.add([m])} />
+        {/* The tab bar floats over the screen, so the composer sits above it (the view's bottom safe
+            area includes the tab bar). With the keyboard up the tab bar is hidden behind it, and the
+            composer rests on the keyboard instead. */}
+        <SafeAreaView edges={keyboard ? [] : ['bottom']}>
+          {closed ? (
+            <Text size="footnote" tone="muted" style={{ textAlign: 'center', paddingVertical: space[1] }}>
+              This conversation is closed. Reopen it from Customer.
+            </Text>
+          ) : null}
+          <Composer conversationId={id} onSent={(m) => messages.add([m])} />
+        </SafeAreaView>
       </KeyboardAvoidingView>
     </Screen>
   );

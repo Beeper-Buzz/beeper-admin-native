@@ -1,7 +1,6 @@
 import { layout, space } from '@instincts/spree-ui';
 import { router } from 'expo-router';
 import { ScrollView, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { AdminTypeSections } from '@/admin-types/more-sections';
 import { CapabilityList } from '@/components/capability-list';
 import { LinkCard, type LinkItem } from '@/components/link-card';
@@ -47,32 +46,31 @@ export default function MoreScreen() {
     });
   return (
     <Screen>
-      <SafeAreaView edges={['top']} style={{ flex: 1 }}>
-        <ScrollView contentContainerStyle={{ padding: layout.gutter, gap: space[5] }}>
-          <Text size="title1" font="display">
-            More
-          </Text>
-          <LinkCard items={links} />
-          <AdminTypeSections />
-          {probe ? (
-            <View style={{ gap: space[2] }}>
-              <Label>About this store</Label>
-              <Text font="uiSemibold">{probe.storeName ?? probe.baseUrl}</Text>
-              <Text size="footnote" font="mono" tone="muted">
-                {[
-                  probe.baseUrl,
-                  probe.preferredApi,
-                  probe.spreeVersion ? `Spree ${probe.spreeVersion}` : null,
-                ]
-                  .filter(Boolean)
-                  .join(' · ')}
-              </Text>
-              <CapabilityList capabilities={probe.capabilities} />
-            </View>
-          ) : null}
-          <Button title="Sign out" variant="plain" onPress={signOut} />
-        </ScrollView>
-      </SafeAreaView>
+      {/* automatic insets keep the content clear of the status bar and the floating tab bar
+          (with only a top safe area, the last rows scrolled under the tab bar out of reach). */}
+      <ScrollView
+        contentInsetAdjustmentBehavior="automatic"
+        contentContainerStyle={{ padding: layout.gutter, gap: space[5], paddingBottom: space[8] }}
+      >
+        <Text size="title1" font="display">
+          More
+        </Text>
+        <LinkCard items={links} />
+        <AdminTypeSections />
+        {probe ? (
+          <View style={{ gap: space[2] }}>
+            <Label>About this store</Label>
+            <Text font="uiSemibold">{probe.storeName ?? probe.baseUrl}</Text>
+            <Text size="footnote" font="mono" tone="muted">
+              {[probe.baseUrl, probe.preferredApi, probe.spreeVersion ? `Spree ${probe.spreeVersion}` : null]
+                .filter(Boolean)
+                .join(' · ')}
+            </Text>
+            <CapabilityList capabilities={probe.capabilities} />
+          </View>
+        ) : null}
+        <Button title="Sign out" variant="plain" onPress={signOut} />
+      </ScrollView>
     </Screen>
   );
 }
